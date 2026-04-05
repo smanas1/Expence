@@ -1,0 +1,13 @@
+{
+  "name": "fintech-dashboard",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"pnpm --dir server dev\" \"pnpm --dir client dev\"",
+    "dev:client": "pnpm --dir client dev",
+    "dev:server": "pnpm --dir server dev",
+    "build": "pnpm --dir server build && pnpm --dir client build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
