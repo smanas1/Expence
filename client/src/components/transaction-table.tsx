@@ -9,7 +9,7 @@ import {
 import { Download, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { formatCurrency, formatRecentDate } from "../lib/format";
+import { formatCalendarDate, formatCurrency, formatRecentDate } from "../lib/format";
 import type { Transaction } from "../types";
 
 interface TransactionTableProps {
@@ -36,10 +36,11 @@ export function TransactionTable({ rows, loading, onDeleteSelected }: Transactio
         ),
       },
       { accessorKey: "title", header: "Title" },
+      { accessorKey: "section", header: "Section" },
       { accessorKey: "category", header: "Category" },
       { accessorKey: "amount", header: "Amount", cell: ({ row }) => formatCurrency(row.original.amount) },
       { accessorKey: "kind", header: "Type", cell: ({ row }) => row.original.kind },
-      { accessorKey: "occurredAt", header: "When", cell: ({ row }) => formatRecentDate(row.original.occurredAt) },
+      { accessorKey: "occurredAt", header: "When", cell: ({ row }) => <span title={formatRecentDate(row.original.occurredAt)}>{formatCalendarDate(row.original.occurredAt)}</span> },
     ],
     [],
   );
@@ -74,8 +75,8 @@ export function TransactionTable({ rows, loading, onDeleteSelected }: Transactio
     <div className="rounded-[28px] border border-white/30 bg-white/70 p-5 shadow-xl shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-slate-900 dark:text-white">Cashflow Ledger</p>
-          <p className="text-sm text-slate-500">Filter, bulk delete, and export in one place.</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">Monthly Cashflow Ledger</p>
+          <p className="text-sm text-slate-500">Track income and expenses by section, month, and category.</p>
         </div>
         <div className="flex gap-2">
           <button type="button" onClick={exportCsv} className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm dark:border-slate-700">
@@ -94,7 +95,7 @@ export function TransactionTable({ rows, loading, onDeleteSelected }: Transactio
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id}>
                 {group.headers.map((header) => (
-                  <th key={header.id} className="px-3 py-2 text-left text-xs font-medium uppercase tracking-[0.2em] text-slate-400">
+                    <th key={header.id} className="px-3 py-2 text-left text-xs font-medium uppercase tracking-[0.2em] text-slate-400">
                     {flexRender(header.column.columnDef.header, header.getContext())}
                   </th>
                 ))}
@@ -105,7 +106,7 @@ export function TransactionTable({ rows, loading, onDeleteSelected }: Transactio
             {loading
               ? Array.from({ length: 6 }).map((_, index) => (
                   <tr key={index}>
-                    <td colSpan={6} className="h-14 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+                    <td colSpan={7} className="h-14 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
                   </tr>
                 ))
               : table.getRowModel().rows.map((row) => (

@@ -5,6 +5,7 @@ const transactionSchema = new Schema({
     title: { type: String, required: true },
     amount: { type: Number, required: true },
     category: { type: String, required: true },
+    section: { type: String, required: true, default: "self" },
     kind: {
         type: String,
         enum: ["income", "expense", "donation"],

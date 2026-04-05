@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bolt, CheckCircle2, Clock3, HeartHandshake, Landmark, Moon, Search, SunMedium, Wallet } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Bolt, CheckCircle2, Clock3, HeartHandshake, Landmark, Moon, Search, SunMedium, Wallet } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -203,10 +203,11 @@ function AppShell() {
   const queryClientLocal = useQueryClient();
   const { theme, toggle } = useThemeMode();
   const location = useLocation();
+  const currentMonth = new Date().toISOString().slice(0, 7);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [filters, setFilters] = useState({ q: "", kind: "all", startDate: "", endDate: "" });
+  const [filters, setFilters] = useState({ q: "", kind: "all", month: currentMonth, section: "all" });
   const [quickExpenseOpen, setQuickExpenseOpen] = useState(false);
-  const [transactionDraft, setTransactionDraft] = useState<Omit<Transaction, "_id">>({ title: "", amount: 0, category: "Food", kind: "expense", occurredAt: new Date().toISOString() });
+  const [transactionDraft, setTransactionDraft] = useState<Omit<Transaction, "_id">>({ title: "", amount: 0, category: "Food", section: "self", kind: "expense", occurredAt: new Date().toISOString() });
   const [donationDraft, setDonationDraft] = useState<DonationDraft>({ title: "Community support", amount: 3000, status: "pending", initiatedAt: "2026-04-06T00:00:00.000Z", completedAt: null });
 
   const summary = useQuery({ queryKey: ["summary"], queryFn: api.summary });
@@ -223,7 +224,7 @@ function AppShell() {
     mutationFn: api.addTransaction,
     onSuccess: () => {
       setQuickExpenseOpen(false);
-      setTransactionDraft({ title: "", amount: 0, category: "Food", kind: "expense", occurredAt: new Date().toISOString() });
+      setTransactionDraft({ title: "", amount: 0, category: "Food", section: "self", kind: "expense", occurredAt: new Date().toISOString() });
       toast.success("Transaction added successfully.");
       invalidate();
     },
@@ -251,6 +252,48 @@ function AppShell() {
   const pendingDonations = donationItems.filter((item) => item.status === "pending");
   const completedDonations = donationItems.filter((item) => item.status === "completed");
   const trackedDonationAmount = donationItems.reduce((sum, item) => sum + item.amount, 0);
+  const monthLabel = useMemo(
+    () =>
+      new Intl.DateTimeFormat("en-US", {
+        month: "long",
+        year: "numeric",
+      }).format(new Date(`${filters.month}-01T00:00:00`)),
+    [filters.month],
+  );
+  const sectionSummary = useMemo(() => {
+    const bucket = new Map<string, { section: string; income: number; expense: number; balance: number; entries: number }>();
+    for (const item of transactions.data ?? []) {
+      const key = item.section || "self";
+      const current = bucket.get(key) ?? { section: key, income: 0, expense: 0, balance: 0, entries: 0 };
+      if (item.kind === "income") {
+        current.income += item.amount;
+      }
+      if (item.kind === "expense") {
+        current.expense += item.amount;
+      }
+      current.balance = current.income - current.expense;
+      current.entries += 1;
+      bucket.set(key, current);
+    }
+
+    return [...bucket.values()].sort((left, right) => right.entries - left.entries || left.section.localeCompare(right.section));
+  }, [transactions.data]);
+  const totalMonthIncome = useMemo(
+    () => (transactions.data ?? []).filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0),
+    [transactions.data],
+  );
+  const totalMonthExpense = useMemo(
+    () => (transactions.data ?? []).filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.amount, 0),
+    [transactions.data],
+  );
+  const availableSections = useMemo(() => {
+    const sections = new Set<string>(["self", "family"]);
+    for (const item of transactions.data ?? []) {
+      sections.add(item.section || "self");
+    }
+
+    return [...sections];
+  }, [transactions.data]);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.18),_transparent_35%),linear-gradient(135deg,#f8fafc,#dbeafe_45%,#f8fafc)] text-slate-900 transition-colors dark:bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.12),_transparent_35%),linear-gradient(135deg,#020617,#0f172a_45%,#020617)] dark:text-white">
@@ -301,17 +344,76 @@ function AppShell() {
                 <Route path="/" element={<DashboardView summary={summary.data} openQuickExpense={() => setQuickExpenseOpen(true)} />} />
                 <Route path="/transactions" element={
                   <div className="space-y-6">
-                    <div className="grid gap-4 md:grid-cols-4">
-                      <input placeholder="Search title or category" value={filters.q} onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} className="rounded-2xl border border-white/30 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70" />
-                      <select value={filters.kind} onChange={(event) => setFilters((current) => ({ ...current, kind: event.target.value }))} className="rounded-2xl border border-white/30 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70">
-                        <option value="all">All types</option>
-                        <option value="income">Income</option>
-                        <option value="expense">Expense</option>
-                        <option value="donation">Donation</option>
-                      </select>
-                      <input type="date" value={filters.startDate} onChange={(event) => setFilters((current) => ({ ...current, startDate: event.target.value }))} className="rounded-2xl border border-white/30 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70" />
-                      <input type="date" value={filters.endDate} onChange={(event) => setFilters((current) => ({ ...current, endDate: event.target.value }))} className="rounded-2xl border border-white/30 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70" />
+                    <GlassCard className="overflow-hidden">
+                      <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white">Income and Expense Planner</p>
+                          <p className="mt-1 text-sm text-slate-500">See everything for one month and break it into sections like self, family, or any custom section you create.</p>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-4">
+                          <input type="month" value={filters.month} onChange={(event) => setFilters((current) => ({ ...current, month: event.target.value }))} className="rounded-2xl border border-white/30 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70" />
+                          <select value={filters.section} onChange={(event) => setFilters((current) => ({ ...current, section: event.target.value }))} className="rounded-2xl border border-white/30 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70">
+                            <option value="all">All sections</option>
+                            {availableSections.map((section) => (
+                              <option key={section} value={section}>{section}</option>
+                            ))}
+                          </select>
+                          <select value={filters.kind} onChange={(event) => setFilters((current) => ({ ...current, kind: event.target.value }))} className="rounded-2xl border border-white/30 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70">
+                            <option value="all">Income and expense</option>
+                            <option value="income">Income only</option>
+                            <option value="expense">Expense only</option>
+                          </select>
+                          <input placeholder="Search title, category, or section" value={filters.q} onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} className="rounded-2xl border border-white/30 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70" />
+                        </div>
+                      </div>
+                    </GlassCard>
+
+                    <div className="grid gap-4 md:grid-cols-3">
+                      {[
+                        { label: `${monthLabel} income`, value: totalMonthIncome, icon: ArrowUpCircle, tone: "text-emerald-500" },
+                        { label: `${monthLabel} expense`, value: totalMonthExpense, icon: ArrowDownCircle, tone: "text-rose-500" },
+                        { label: `${monthLabel} balance`, value: totalMonthIncome - totalMonthExpense, icon: Wallet, tone: "text-cyan-500" },
+                      ].map((item) => (
+                        <GlassCard key={item.label}>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-slate-500">{item.label}</p>
+                              <p className="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">{formatCurrency(item.value)}</p>
+                            </div>
+                            <item.icon className={cn("h-6 w-6", item.tone)} />
+                          </div>
+                        </GlassCard>
+                      ))}
                     </div>
+
+                    <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                      {sectionSummary.map((section) => (
+                        <GlassCard key={section.section}>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-slate-500">Section</p>
+                              <h3 className="mt-1 text-2xl font-semibold capitalize text-slate-900 dark:text-white">{section.section}</h3>
+                            </div>
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs uppercase tracking-[0.22em] text-slate-500 dark:bg-slate-800 dark:text-slate-300">{section.entries} entries</span>
+                          </div>
+                          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                            <div className="rounded-2xl bg-emerald-500/10 p-3">
+                              <p className="text-xs uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">Income</p>
+                              <p className="mt-2 font-semibold text-slate-900 dark:text-white">{formatCurrency(section.income)}</p>
+                            </div>
+                            <div className="rounded-2xl bg-rose-500/10 p-3">
+                              <p className="text-xs uppercase tracking-[0.2em] text-rose-700 dark:text-rose-300">Expense</p>
+                              <p className="mt-2 font-semibold text-slate-900 dark:text-white">{formatCurrency(section.expense)}</p>
+                            </div>
+                            <div className="rounded-2xl bg-cyan-500/10 p-3">
+                              <p className="text-xs uppercase tracking-[0.2em] text-cyan-700 dark:text-cyan-300">Balance</p>
+                              <p className="mt-2 font-semibold text-slate-900 dark:text-white">{formatCurrency(section.balance)}</p>
+                            </div>
+                          </div>
+                        </GlassCard>
+                      ))}
+                    </div>
+
                     <TransactionTable rows={transactions.data ?? []} loading={transactions.isLoading} onDeleteSelected={(ids) => ids.length && bulkDelete.mutate(ids)} />
                   </div>
                 } />
@@ -451,6 +553,7 @@ function AppShell() {
               <input value={transactionDraft.title} onChange={(event) => setTransactionDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Title" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <input type="number" value={transactionDraft.amount} onChange={(event) => setTransactionDraft((current) => ({ ...current, amount: Number(event.target.value) }))} placeholder="Amount in BDT" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <input value={transactionDraft.category} onChange={(event) => setTransactionDraft((current) => ({ ...current, category: event.target.value }))} placeholder="Category" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
+              <input value={transactionDraft.section} onChange={(event) => setTransactionDraft((current) => ({ ...current, section: event.target.value.toLowerCase() || "self" }))} placeholder="Section like self or family" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <select value={transactionDraft.kind} onChange={(event) => setTransactionDraft((current) => ({ ...current, kind: event.target.value as TransactionKind }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80">
                 <option value="expense">Expense</option>
                 <option value="income">Income</option>

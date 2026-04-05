@@ -2,6 +2,18 @@ import mongoose from "mongoose";
 import { Router } from "express";
 import { DonationPlanModel, normalizeDonationPlan } from "../models/DonationPlan.js";
 export const donationsRouter = Router();
+async function createDonation(req, res) {
+    const completedAt = req.body.status === "completed" ? req.body.completedAt ?? req.body.initiatedAt : null;
+    const plan = await DonationPlanModel.create({
+        userId: req.userId,
+        title: req.body.title,
+        amount: req.body.amount,
+        status: req.body.status,
+        initiatedAt: req.body.initiatedAt,
+        completedAt,
+    });
+    return res.status(201).json(normalizeDonationPlan(plan.toObject()));
+}
 donationsRouter.get("/", async (req, res) => {
     const plans = await DonationPlanModel.find({
         userId: new mongoose.Types.ObjectId(req.userId),
@@ -18,18 +30,8 @@ donationsRouter.get("/", async (req, res) => {
         }),
     });
 });
-donationsRouter.post("/", async (req, res) => {
-    const completedAt = req.body.status === "completed" ? req.body.completedAt ?? req.body.initiatedAt : null;
-    const plan = await DonationPlanModel.create({
-        userId: req.userId,
-        title: req.body.title,
-        amount: req.body.amount,
-        status: req.body.status,
-        initiatedAt: req.body.initiatedAt,
-        completedAt,
-    });
-    res.status(201).json(normalizeDonationPlan(plan.toObject()));
-});
+donationsRouter.post("/", createDonation);
+donationsRouter.post("/recurring", createDonation);
 donationsRouter.patch("/:id/status", async (req, res) => {
     const nextStatus = req.body.status === "completed" ? "completed" : "pending";
     const donationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;

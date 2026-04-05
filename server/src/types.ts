@@ -4,6 +4,7 @@ export interface DashboardSeedTransaction {
   title: string;
   amount: number;
   category: string;
+  section: string;
   kind: TransactionKind;
   occurredAt: Date;
 }

@@ -5,6 +5,7 @@ export interface Transaction {
   title: string;
   amount: number;
   category: string;
+  section: string;
   kind: TransactionKind;
   occurredAt: string;
 }
