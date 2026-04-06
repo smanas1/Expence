@@ -12,7 +12,7 @@ function setSessionCookie(res: Response, userId: string) {
   res.cookie(config.cookieName, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: false,
+    secure: config.isProduction,
     maxAge: 1000 * 60 * 60 * 24 * 7,
   });
 }
