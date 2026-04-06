@@ -59,7 +59,7 @@ donationsRouter.patch("/:id/status", async (req: AuthedRequest, res) => {
         completedAt: nextStatus === "completed" ? new Date() : null,
       },
     },
-    { new: true },
+    { returnDocument: "after" },
   ).lean();
 
   if (!donation) {

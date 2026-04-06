@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { Router } from "express";
-import { TransactionModel } from "../models/Transaction.js";
+import { recomputeUserTotals, TransactionModel } from "../models/Transaction.js";
 export const transactionsRouter = Router();
 transactionsRouter.get("/", async (req, res) => {
     const userId = new mongoose.Types.ObjectId(req.userId);
@@ -50,6 +50,7 @@ transactionsRouter.post("/", async (req, res) => {
         section: req.body.section ?? "self",
         userId: req.userId,
     });
+    await recomputeUserTotals(new mongoose.Types.ObjectId(req.userId));
     res.status(201).json({
         ...transaction.toObject(),
         _id: String(transaction._id),
@@ -64,5 +65,6 @@ transactionsRouter.delete("/bulk", async (req, res) => {
         _id: new mongoose.Types.ObjectId(id),
         userId,
     })));
+    await recomputeUserTotals(userId);
     res.status(204).send();
 });

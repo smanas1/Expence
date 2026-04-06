@@ -20,7 +20,7 @@ const transactionSchema = new Schema(
   { timestamps: true },
 );
 
-async function recomputeUserTotals(userId: mongoose.Types.ObjectId) {
+export async function recomputeUserTotals(userId: mongoose.Types.ObjectId) {
   const [totals] = await mongoose.model("Transaction").aggregate<{
     totalIncome: number;
     totalExpense: number;
@@ -65,7 +65,7 @@ async function recomputeUserTotals(userId: mongoose.Types.ObjectId) {
       totalSavings: totalIncome - totalExpense - totalDonation,
       lastTransactionAt: totals?.lastTransactionAt ?? null,
     },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
+    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
   );
 }
 

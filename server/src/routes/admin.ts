@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import { Router } from "express";
 
 import { normalizeDonationPlan, DonationPlanModel } from "../models/DonationPlan.js";
-import { TransactionModel } from "../models/Transaction.js";
+import { recomputeUserTotals, TransactionModel } from "../models/Transaction.js";
 import { UserModel } from "../models/User.js";
 
 export const adminRouter = Router();
@@ -50,7 +50,7 @@ adminRouter.patch("/users/:id", async (req, res) => {
     update.password = password.trim();
   }
 
-  const user = await UserModel.findByIdAndUpdate(userId, { $set: update }, { new: true }).lean();
+  const user = await UserModel.findByIdAndUpdate(userId, { $set: update }, { returnDocument: "after" }).lean();
 
   if (!user) {
     res.status(404).json({ message: "User not found." });
@@ -127,6 +127,8 @@ adminRouter.delete("/transactions/:id", async (req, res) => {
     return;
   }
 
+  await recomputeUserTotals(new mongoose.Types.ObjectId(transaction.userId));
+
   res.status(204).send();
 });
 
@@ -172,7 +174,7 @@ adminRouter.patch("/donations/:id/status", async (req, res) => {
         completedAt: nextStatus === "completed" ? new Date() : null,
       },
     },
-    { new: true },
+    { returnDocument: "after" },
   )
     .populate("userId", "name email")
     .lean();

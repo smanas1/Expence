@@ -859,13 +859,50 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
 
     updateAdminUser.mutate({ id: userId, payload: draft });
   };
+  const navItems = [{ to: "/", label: "Dashboard", icon: Landmark }, { to: "/transactions", label: "Transactions", icon: Wallet }, { to: "/donations", label: "Donations", icon: HeartHandshake }, ...(isAdmin ? [{ to: "/admin", label: "Admin", icon: Shield }] : [])];
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.18),_transparent_35%),linear-gradient(135deg,#f8fafc,#dbeafe_45%,#f8fafc)] text-slate-900 transition-colors dark:bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.12),_transparent_35%),linear-gradient(135deg,#020617,#0f172a_45%,#020617)] dark:text-white">
       <Toaster richColors position="top-right" />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onQuickExpense={() => setQuickExpenseOpen(true)} />
-      <div className="mx-auto grid min-h-screen max-w-[1600px] gap-4 p-3 sm:gap-6 sm:p-4 lg:grid-cols-[280px_1fr] lg:p-6">
-        <aside className="rounded-[32px] border border-white/35 bg-white/50 p-4 shadow-2xl shadow-slate-900/5 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/45 sm:p-5">
+      <div className="mx-auto max-w-[1600px] p-3 sm:p-4 lg:p-6">
+        <div className="space-y-3 lg:hidden">
+          <div className="rounded-[28px] border border-white/35 bg-white/55 p-4 shadow-xl shadow-slate-900/5 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/50">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.35em] text-cyan-600">FinTrack</p>
+                <h1 className="mt-2 text-xl font-semibold">BDT Console</h1>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{user?.name ?? "Guest user"}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={toggle} className="rounded-full border border-white/30 p-2.5 dark:border-white/10" aria-label="Toggle theme">
+                  {theme === "dark" ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                </button>
+                <button type="button" onClick={() => void logout.mutateAsync()} className="rounded-full border border-white/30 p-2.5 dark:border-white/10" aria-label="Log out">
+                  <LogOut className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => openQuickTransaction("income")} className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
+                Add income
+              </button>
+              <button type="button" onClick={() => openQuickTransaction("expense")} className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-medium text-white dark:bg-cyan-400 dark:text-slate-950">
+                Add expense
+              </button>
+            </div>
+          </div>
+
+          <button type="button" onClick={() => setPaletteOpen(true)} className="flex w-full items-center gap-3 rounded-[24px] border border-white/35 bg-white/65 px-4 py-3.5 text-sm text-slate-500 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/55 dark:text-slate-400">
+            <Search className="h-4 w-4" />
+            Quick jump
+            <span className="ml-auto rounded-full bg-slate-100 px-2 py-1 text-[11px] dark:bg-slate-800">Ctrl+K</span>
+          </button>
+        </div>
+
+        <div className="mt-4 grid min-h-screen gap-4 lg:mt-0 lg:grid-cols-[280px_1fr] lg:gap-6">
+        <aside className="hidden rounded-[32px] border border-white/35 bg-white/50 p-4 shadow-2xl shadow-slate-900/5 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/45 sm:p-5 lg:block">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-[0.35em] text-cyan-600">FinTrack</p>
@@ -889,7 +926,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
           </button>
 
           <nav className="mt-6 flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-2 lg:overflow-visible lg:pb-0">
-            {[{ to: "/", label: "Dashboard", icon: Landmark }, { to: "/transactions", label: "Transactions", icon: Wallet }, { to: "/donations", label: "Donations", icon: HeartHandshake }, ...(isAdmin ? [{ to: "/admin", label: "Admin", icon: Shield }] : [])].map((item) => (
+            {navItems.map((item) => (
               <NavLink key={item.to} to={item.to} className={({ isActive }) => cn("flex shrink-0 items-center gap-3 rounded-2xl px-4 py-3 text-sm transition-colors", isActive ? "bg-slate-950 text-white dark:bg-cyan-400 dark:text-slate-950" : "text-slate-600 hover:bg-white/60 dark:text-slate-300 dark:hover:bg-slate-800/70")}>
                 <item.icon className="h-4 w-4" />
                 {item.label}
@@ -903,7 +940,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
           </div>
         </aside>
 
-        <main className="space-y-6">
+        <main className="space-y-5 pb-24 lg:space-y-6 lg:pb-0">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-sm uppercase tracking-[0.28em] text-cyan-600">April 2026</p>
@@ -1200,6 +1237,29 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
             </motion.div>
           </AnimatePresence>
         </main>
+        </div>
+
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200/70 bg-white/90 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-slate-800/80 dark:bg-slate-950/90 lg:hidden">
+          <div className="mx-auto grid max-w-xl grid-flow-col auto-cols-fr gap-2">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  cn(
+                    "flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2.5 text-[11px] font-medium transition-colors",
+                    isActive
+                      ? "bg-slate-950 text-white dark:bg-cyan-400 dark:text-slate-950"
+                      : "text-slate-500 dark:text-slate-400",
+                  )
+                }
+              >
+                <item.icon className="h-4 w-4" />
+                <span>{item.label}</span>
+              </NavLink>
+            ))}
+          </div>
+        </div>
       </div>
 
       {quickExpenseOpen ? (

@@ -43,7 +43,7 @@ donationsRouter.patch("/:id/status", async (req, res) => {
             status: nextStatus,
             completedAt: nextStatus === "completed" ? new Date() : null,
         },
-    }, { new: true }).lean();
+    }, { returnDocument: "after" }).lean();
     if (!donation) {
         return res.status(404).json({ message: "Donation not found" });
     }

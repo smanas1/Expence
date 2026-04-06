@@ -14,7 +14,7 @@ const transactionSchema = new Schema({
     },
     occurredAt: { type: Date, required: true, index: true },
 }, { timestamps: true });
-async function recomputeUserTotals(userId) {
+export async function recomputeUserTotals(userId) {
     const [totals] = await mongoose.model("Transaction").aggregate([
         { $match: { userId } },
         {
@@ -49,7 +49,7 @@ async function recomputeUserTotals(userId) {
         totalDonation,
         totalSavings: totalIncome - totalExpense - totalDonation,
         lastTransactionAt: totals?.lastTransactionAt ?? null,
-    }, { upsert: true, new: true, setDefaultsOnInsert: true });
+    }, { upsert: true, returnDocument: "after", setDefaultsOnInsert: true });
 }
 transactionSchema.pre("save", function onSave() {
     this.$locals.previousUserId = this.isNew ? null : this.get("userId");

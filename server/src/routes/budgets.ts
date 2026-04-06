@@ -26,7 +26,7 @@ budgetsRouter.post("/", async (req: AuthedRequest, res) => {
   const budget = await BudgetModel.findOneAndUpdate(
     { userId: req.userId, category, month },
     { userId: req.userId, category, month, limit },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
+    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
   );
 
   res.status(201).json(budget);

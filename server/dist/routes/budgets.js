@@ -12,6 +12,6 @@ budgetsRouter.get("/", async (req, res) => {
 });
 budgetsRouter.post("/", async (req, res) => {
     const { category, month, limit } = req.body;
-    const budget = await BudgetModel.findOneAndUpdate({ userId: req.userId, category, month }, { userId: req.userId, category, month, limit }, { upsert: true, new: true, setDefaultsOnInsert: true });
+    const budget = await BudgetModel.findOneAndUpdate({ userId: req.userId, category, month }, { userId: req.userId, category, month, limit }, { upsert: true, returnDocument: "after", setDefaultsOnInsert: true });
     res.status(201).json(budget);
 });

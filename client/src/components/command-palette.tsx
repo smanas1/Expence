@@ -27,17 +27,17 @@ export function CommandPalette({ open, onOpenChange, onQuickExpense }: CommandPa
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/45 p-4 backdrop-blur-sm" onClick={() => onOpenChange(false)}>
+    <div className="fixed inset-0 z-50 bg-slate-950/45 p-3 backdrop-blur-sm sm:p-4" onClick={() => onOpenChange(false)}>
       <div
-        className="mx-auto mt-24 max-w-2xl overflow-hidden rounded-3xl border border-white/20 bg-white/85 shadow-2xl shadow-cyan-950/20 dark:bg-slate-900/90"
+        className="mx-auto mt-[max(8vh,1rem)] max-w-2xl overflow-hidden rounded-[28px] border border-white/20 bg-white/90 shadow-2xl shadow-cyan-950/20 dark:bg-slate-900/92 sm:mt-24 sm:rounded-3xl"
         onClick={(event) => event.stopPropagation()}
       >
         <Command className="flex flex-col">
           <Command.Input
-            className="w-full border-b border-slate-200/80 bg-transparent px-5 py-4 text-sm outline-none dark:border-slate-800"
+            className="w-full border-b border-slate-200/80 bg-transparent px-4 py-4 text-base outline-none dark:border-slate-800 sm:px-5 sm:text-sm"
             placeholder="Jump to dashboard, donations, or add expense..."
           />
-          <Command.List className="max-h-80 overflow-y-auto p-3">
+          <Command.List className="max-h-[70vh] overflow-y-auto p-3 sm:max-h-80">
             <Command.Empty className="px-3 py-10 text-center text-sm text-slate-500">
               No quick actions found.
             </Command.Empty>

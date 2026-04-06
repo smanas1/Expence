@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import { Router } from "express";
 
 import type { AuthedRequest } from "../middleware/auth.js";
-import { TransactionModel } from "../models/Transaction.js";
+import { recomputeUserTotals, TransactionModel } from "../models/Transaction.js";
 
 export const transactionsRouter = Router();
 
@@ -62,6 +62,7 @@ transactionsRouter.post("/", async (req: AuthedRequest, res) => {
     section: req.body.section ?? "self",
     userId: req.userId,
   });
+  await recomputeUserTotals(new mongoose.Types.ObjectId(req.userId));
 
   res.status(201).json({
     ...transaction.toObject(),
@@ -83,6 +84,7 @@ transactionsRouter.delete("/bulk", async (req: AuthedRequest, res) => {
       }),
     ),
   );
+  await recomputeUserTotals(userId);
 
   res.status(204).send();
 });
