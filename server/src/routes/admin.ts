@@ -100,7 +100,7 @@ adminRouter.get("/transactions", async (req, res) => {
       _id: String(transaction._id),
       title: transaction.title,
       amount: transaction.amount,
-      category: transaction.category,
+      category: transaction.category ?? "",
       section: transaction.section ?? "self",
       kind: transaction.kind,
       occurredAt:

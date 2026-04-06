@@ -13,7 +13,7 @@ export interface Transaction {
   _id: string;
   title: string;
   amount: number;
-  category: string;
+  category?: string;
   section: string;
   kind: TransactionKind;
   occurredAt: string;

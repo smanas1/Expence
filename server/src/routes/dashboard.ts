@@ -88,7 +88,12 @@ dashboardRouter.get("/summary", async (req: AuthedRequest, res) => {
     totals,
     chart,
     budgets,
-    recentTransactions,
+    recentTransactions: recentTransactions.map((transaction) => ({
+      ...transaction,
+      _id: String(transaction._id),
+      category: transaction.category ?? "",
+      section: transaction.section ?? "self",
+    })),
     donationPlans: plans
       .map(normalizeDonationPlan)
       .sort((left, right) => {

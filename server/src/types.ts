@@ -3,7 +3,7 @@ export type TransactionKind = "income" | "expense" | "donation";
 export interface DashboardSeedTransaction {
   title: string;
   amount: number;
-  category: string;
+  category?: string;
   section: string;
   kind: TransactionKind;
   occurredAt: Date;

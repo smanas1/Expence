@@ -50,6 +50,7 @@ transactionsRouter.get("/", async (req: AuthedRequest, res) => {
     transactions.map((transaction) => ({
       ...transaction,
       _id: String(transaction._id),
+      category: transaction.category ?? "",
       section: transaction.section ?? "self",
     })),
   );
@@ -65,6 +66,7 @@ transactionsRouter.post("/", async (req: AuthedRequest, res) => {
   res.status(201).json({
     ...transaction.toObject(),
     _id: String(transaction._id),
+    category: transaction.category ?? "",
     section: transaction.section ?? "self",
   });
 });

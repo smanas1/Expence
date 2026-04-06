@@ -12,6 +12,10 @@ import { useMemo, useState } from "react";
 import { formatCalendarDate, formatCurrency, formatRecentDate } from "../lib/format";
 import type { Transaction } from "../types";
 
+function formatCategoryLabel(category?: string) {
+  return category?.trim() ? category : "Uncategorized";
+}
+
 interface TransactionTableProps {
   rows: Transaction[];
   loading?: boolean;
@@ -39,7 +43,7 @@ export function TransactionTable({ rows, loading, onDeleteSelected, onRemoveDona
       },
       { accessorKey: "title", header: "Title" },
       { accessorKey: "section", header: "Section" },
-      { accessorKey: "category", header: "Category" },
+      { accessorKey: "category", header: "Category", cell: ({ row }) => formatCategoryLabel(row.original.category) },
       { accessorKey: "amount", header: "Amount", cell: ({ row }) => formatCurrency(row.original.amount) },
       { accessorKey: "kind", header: "Type", cell: ({ row }) => row.original.kind },
       { accessorKey: "occurredAt", header: "When", cell: ({ row }) => <span title={formatRecentDate(row.original.occurredAt)}>{formatCalendarDate(row.original.occurredAt)}</span> },
@@ -79,7 +83,7 @@ export function TransactionTable({ rows, loading, onDeleteSelected, onRemoveDona
   const exportCsv = () => {
     const lines = [
       ["Title", "Category", "Amount", "Type", "Occurred At"].join(","),
-      ...rows.map((row) => [row.title, row.category, row.amount, row.kind, row.occurredAt].join(",")),
+      ...rows.map((row) => [row.title, formatCategoryLabel(row.category), row.amount, row.kind, row.occurredAt].join(",")),
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -138,7 +142,7 @@ export function TransactionTable({ rows, loading, onDeleteSelected, onRemoveDona
                   </div>
                   <div>
                     <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Category</p>
-                    <p className="mt-1 text-slate-700 dark:text-slate-200">{row.original.category}</p>
+                    <p className="mt-1 text-slate-700 dark:text-slate-200">{formatCategoryLabel(row.original.category)}</p>
                   </div>
                   <div>
                     <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Type</p>

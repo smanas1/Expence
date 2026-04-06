@@ -19,6 +19,10 @@ type TransactionDraft = Omit<Transaction, "_id" | "amount"> & { amount: number |
 type PdfExportDraft = { startDate: string; endDate: string; section: string };
 type AdminUserDraft = { name: string; email: string; currency: string; role: "user" | "admin"; password: string };
 
+function formatCategoryLabel(category?: string) {
+  return category?.trim() ? category : "Uncategorized";
+}
+
 function useThemeMode() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     const saved = window.localStorage.getItem("theme") as "light" | "dark" | null;
@@ -230,7 +234,7 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
                   <p className="font-medium text-slate-900 dark:text-white">{item.title}</p>
                   <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-medium uppercase tracking-[0.16em] text-slate-600 dark:bg-slate-800 dark:text-slate-300">{item.kind}</span>
                 </div>
-                <p className="mt-1 text-sm text-slate-500">{item.category} | {formatRecentDate(item.occurredAt)}</p>
+                <p className="mt-1 text-sm text-slate-500">{formatCategoryLabel(item.category)} | {formatRecentDate(item.occurredAt)}</p>
               </div>
               <p className="text-lg font-semibold text-slate-900 dark:text-white">{formatCurrency(item.amount)}</p>
             </motion.div>
@@ -394,7 +398,7 @@ function AdminView({
                       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium uppercase tracking-[0.16em] text-slate-600 dark:bg-slate-800 dark:text-slate-300">{item.kind}</span>
                     </div>
                     <p className="mt-1 text-sm text-slate-500">{item.user?.name ?? "Unknown user"} | {item.user?.email ?? "No email"}</p>
-                    <p className="mt-1 text-sm text-slate-500">{item.category} | {item.section} | {formatCalendarDate(item.occurredAt)}</p>
+                    <p className="mt-1 text-sm text-slate-500">{formatCategoryLabel(item.category)} | {item.section} | {formatCalendarDate(item.occurredAt)}</p>
                     <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">{formatCurrency(item.amount)}</p>
                   </div>
                   <button type="button" onClick={() => onDeleteTransaction(item._id)} className="w-full rounded-full border border-rose-300 px-4 py-2 text-sm font-medium text-rose-600 dark:border-rose-800 dark:text-rose-300 sm:w-auto">
@@ -467,7 +471,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
     endDate: new Date().toISOString().slice(0, 10),
     section: "all",
   });
-  const [transactionDraft, setTransactionDraft] = useState<TransactionDraft>({ title: "", amount: "", category: "Food", section: "family", kind: "expense", occurredAt: new Date().toISOString() });
+  const [transactionDraft, setTransactionDraft] = useState<TransactionDraft>({ title: "", amount: "", category: "", section: "family", kind: "expense", occurredAt: new Date().toISOString() });
   const [donationDraft, setDonationDraft] = useState<DonationDraft>({ title: "", amount: "", status: "pending", initiatedAt: "2026-04-06T00:00:00.000Z", completedAt: null });
 
   const summary = useQuery({ queryKey: ["summary"], queryFn: api.summary });
@@ -525,7 +529,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
     mutationFn: (payload: TransactionDraft) => api.addTransaction({ ...payload, amount: Number(payload.amount) }),
     onSuccess: () => {
       setQuickExpenseOpen(false);
-      setTransactionDraft({ title: "", amount: "", category: "Food", section: "family", kind: "expense", occurredAt: new Date().toISOString() });
+      setTransactionDraft({ title: "", amount: "", category: "", section: "family", kind: "expense", occurredAt: new Date().toISOString() });
       toast.success("Transaction added successfully.");
       invalidate();
     },
@@ -646,7 +650,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
         body: rows.map((row) => [
           formatCalendarDate(row.occurredAt),
           row.title,
-          row.category,
+          formatCategoryLabel(row.category),
           row.section,
           row.kind,
           formatCurrency(row.amount),
@@ -762,8 +766,8 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
     setTransactionDraft({
       title: "",
       amount: "",
-      category: kind === "income" ? "Salary" : kind === "donation" ? "Donation" : "Food",
-      section: kind === "income" ? "self" : "family",
+      category: "",
+      section: "family",
       kind,
       occurredAt: new Date().toISOString(),
     });
@@ -1159,7 +1163,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
             <form className="mt-4 space-y-3" onSubmit={(event) => { event.preventDefault(); addTransaction.mutate(transactionDraft); }}>
               <input value={transactionDraft.title} onChange={(event) => setTransactionDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Title" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <input type="number" value={transactionDraft.amount} onChange={(event) => setTransactionDraft((current) => ({ ...current, amount: event.target.value === "" ? "" : Number(event.target.value) }))} placeholder="Amount in BDT" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
-              <input value={transactionDraft.category} onChange={(event) => setTransactionDraft((current) => ({ ...current, category: event.target.value }))} placeholder="Category" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
+              <input value={transactionDraft.category ?? ""} onChange={(event) => setTransactionDraft((current) => ({ ...current, category: event.target.value }))} placeholder="Category (optional)" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <input value={transactionDraft.section} onChange={(event) => setTransactionDraft((current) => ({ ...current, section: event.target.value.toLowerCase() || "family" }))} placeholder="Section like self or family" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <select value={transactionDraft.kind} onChange={(event) => setTransactionDraft((current) => ({ ...current, kind: event.target.value as TransactionKind }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80">
                 <option value="expense">Expense</option>
