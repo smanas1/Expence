@@ -16,9 +16,10 @@ interface TransactionTableProps {
   rows: Transaction[];
   loading?: boolean;
   onDeleteSelected: (ids: string[]) => void;
+  onRemoveDonation?: (id: string) => void;
 }
 
-export function TransactionTable({ rows, loading, onDeleteSelected }: TransactionTableProps) {
+export function TransactionTable({ rows, loading, onDeleteSelected, onRemoveDonation }: TransactionTableProps) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const columns = useMemo<ColumnDef<Transaction>[]>(
@@ -41,8 +42,25 @@ export function TransactionTable({ rows, loading, onDeleteSelected }: Transactio
       { accessorKey: "amount", header: "Amount", cell: ({ row }) => formatCurrency(row.original.amount) },
       { accessorKey: "kind", header: "Type", cell: ({ row }) => row.original.kind },
       { accessorKey: "occurredAt", header: "When", cell: ({ row }) => <span title={formatRecentDate(row.original.occurredAt)}>{formatCalendarDate(row.original.occurredAt)}</span> },
+      {
+        id: "actions",
+        header: "Action",
+        cell: ({ row }) =>
+          row.original.kind === "donation" ? (
+            <button
+              type="button"
+              onClick={() => onRemoveDonation?.(row.original._id)}
+              className="inline-flex items-center gap-2 rounded-full border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-600 dark:border-rose-800 dark:text-rose-300"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Remove
+            </button>
+          ) : (
+            <span className="text-xs text-slate-400">-</span>
+          ),
+      },
     ],
-    [],
+    [onRemoveDonation],
   );
 
   const table = useReactTable({
@@ -106,7 +124,7 @@ export function TransactionTable({ rows, loading, onDeleteSelected }: Transactio
             {loading
               ? Array.from({ length: 6 }).map((_, index) => (
                   <tr key={index}>
-                    <td colSpan={7} className="h-14 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+                    <td colSpan={8} className="h-14 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
                   </tr>
                 ))
               : table.getRowModel().rows.map((row) => (

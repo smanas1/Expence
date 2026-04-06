@@ -11,7 +11,7 @@ import { TransactionTable } from "./components/transaction-table";
 import { api } from "./lib/api";
 import { formatCalendarDate, formatCurrency, formatRecentDate } from "./lib/format";
 import { cn } from "./lib/utils";
-import type { DashboardSummary, Transaction, TransactionKind } from "./types";
+import type { DashboardSummary, DonationPlan, Transaction, TransactionKind } from "./types";
 
 const queryClient = new QueryClient();
 type DonationDraft = { title: string; amount: number; status: "pending" | "completed"; initiatedAt: string; completedAt: string | null };
@@ -221,6 +221,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [filters, setFilters] = useState({ q: "", kind: "all", month: currentMonth, section: "all" });
   const [quickExpenseOpen, setQuickExpenseOpen] = useState(false);
+  const [donationToRemove, setDonationToRemove] = useState<DonationPlan | null>(null);
   const [transactionDraft, setTransactionDraft] = useState<TransactionDraft>({ title: "", amount: "", category: "Food", section: "family", kind: "expense", occurredAt: new Date().toISOString() });
   const [donationDraft, setDonationDraft] = useState<DonationDraft>({ title: "Community support", amount: 3000, status: "pending", initiatedAt: "2026-04-06T00:00:00.000Z", completedAt: null });
 
@@ -263,6 +264,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
   const deleteDonation = useMutation({
     mutationFn: api.deleteDonation,
     onSuccess: () => {
+      setDonationToRemove(null);
       toast.success("Donation removed.");
       invalidate();
     },
@@ -283,6 +285,19 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
   const pendingDonations = donationItems.filter((item) => item.status === "pending");
   const completedDonations = donationItems.filter((item) => item.status === "completed");
   const trackedDonationAmount = donationItems.reduce((sum, item) => sum + item.amount, 0);
+  const pendingDonationAmount = pendingDonations.reduce((sum, item) => sum + item.amount, 0);
+  const completedDonationAmount = completedDonations.reduce((sum, item) => sum + item.amount, 0);
+  const donationCompletionRate = donationItems.length ? Math.round((completedDonations.length / donationItems.length) * 100) : 0;
+  const averageCompletedDonation = completedDonations.length ? completedDonationAmount / completedDonations.length : 0;
+  const openRemoveDonationModal = (donationId: string) => {
+    const donation = donationItems.find((item) => item._id === donationId);
+    if (!donation) {
+      toast.error("Donation not found.");
+      return;
+    }
+
+    setDonationToRemove(donation);
+  };
   const monthLabel = useMemo(
     () =>
       new Intl.DateTimeFormat("en-US", {
@@ -450,31 +465,64 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
                       ))}
                     </div>
 
-                    <TransactionTable rows={transactions.data ?? []} loading={transactions.isLoading} onDeleteSelected={(ids) => ids.length && bulkDelete.mutate(ids)} />
+                    <TransactionTable
+                      rows={transactions.data ?? []}
+                      loading={transactions.isLoading}
+                      onDeleteSelected={(ids) => ids.length && bulkDelete.mutate(ids)}
+                      onRemoveDonation={openRemoveDonationModal}
+                    />
                   </div>
                 } />
                 <Route path="/donations" element={
                   <div className="space-y-6">
-                    <div className="grid gap-4 md:grid-cols-3">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                      <div>
+                        <p className="text-sm uppercase tracking-[0.24em] text-cyan-600">Donations</p>
+                        <h3 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">Simple giving tracker</h3>
+                        <p className="mt-2 max-w-2xl text-sm text-slate-500">
+                          See what is pending, what is completed, and the total amount moving through your donation workflow.
+                        </p>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-3xl border border-emerald-200/60 bg-emerald-50/70 px-4 py-3 dark:border-emerald-900/30 dark:bg-emerald-950/20">
+                          <p className="text-xs uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">Completion rate</p>
+                          <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{donationCompletionRate}%</p>
+                        </div>
+                        <div className="rounded-3xl border border-slate-200/70 bg-white/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/70">
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Average completed</p>
+                          <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{formatCurrency(averageCompletedDonation)}</p>
+                        </div>
+                        <div className="rounded-3xl border border-slate-200/70 bg-white/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/70">
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Momentum</p>
+                          <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{completedDonations.length >= pendingDonations.length ? "Strong" : "Growing"}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                       {[
-                        { label: "Tracked donations", value: donationItems.length, icon: HeartHandshake, tone: "text-cyan-500" },
-                        { label: "Pending", value: pendingDonations.length, icon: Clock3, tone: "text-amber-500" },
-                        { label: "Completed", value: completedDonations.length, icon: CheckCircle2, tone: "text-emerald-500" },
+                        { label: "Tracked donations", value: donationItems.length, icon: HeartHandshake, tone: "text-cyan-500", surface: "bg-cyan-500/10" },
+                        { label: "Pending", value: pendingDonations.length, icon: Clock3, tone: "text-amber-500", surface: "bg-amber-500/10" },
+                        { label: "Pending amount", value: formatCurrency(pendingDonationAmount), icon: Clock3, tone: "text-amber-500", surface: "bg-amber-500/10" },
+                        { label: "Completed", value: completedDonations.length, icon: CheckCircle2, tone: "text-emerald-500", surface: "bg-emerald-500/10" },
+                        { label: "Completed amount", value: formatCurrency(completedDonationAmount), icon: Bolt, tone: "text-emerald-500", surface: "bg-cyan-500/10" },
                       ].map((item) => (
-                        <GlassCard key={item.label}>
+                        <GlassCard key={item.label} className="border-slate-200/70 bg-white/80 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="text-sm text-slate-500">{item.label}</p>
                               <p className="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">{item.value}</p>
                             </div>
-                            <item.icon className={cn("h-5 w-5", item.tone)} />
+                            <div className={cn("rounded-2xl p-3", item.surface)}>
+                              <item.icon className={cn("h-5 w-5", item.tone)} />
+                            </div>
                           </div>
                         </GlassCard>
                       ))}
                     </div>
 
-                    <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-                      <GlassCard className="h-fit">
+                    <div className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
+                      <GlassCard className="h-fit border-slate-200/70 bg-white/80 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70 xl:sticky xl:top-6">
                         <form onSubmit={(event) => {
                           event.preventDefault();
                           addDonation.mutate({
@@ -482,8 +530,8 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
                             completedAt: donationDraft.status === "completed" ? donationDraft.completedAt ?? donationDraft.initiatedAt : null,
                           });
                         }}>
-                          <p className="text-sm font-semibold text-slate-900 dark:text-white">Track donation</p>
-                          <p className="mt-1 text-sm text-slate-500">Create a donation entry and keep it pending until the payment is completed.</p>
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white">Add donation</p>
+                          <p className="mt-1 text-sm text-slate-500">Create a record and update it as the donation moves from pending to completed.</p>
                           <div className="mt-4 space-y-3">
                             <input value={donationDraft.title} onChange={(event) => setDonationDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Donation title" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
                             <input type="number" value={donationDraft.amount} onChange={(event) => setDonationDraft((current) => ({ ...current, amount: Number(event.target.value) }))} placeholder="Amount" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
@@ -502,7 +550,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
                               </div>
                             ) : null}
                           </div>
-                          <div className="mt-4 rounded-2xl bg-slate-100/80 p-4 text-sm text-slate-600 dark:bg-slate-950/70 dark:text-slate-300">
+                          <div className="mt-4 rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/70 dark:text-slate-300">
                             Total tracked amount: <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(trackedDonationAmount)}</span>
                           </div>
                           <button className="mt-4 w-full rounded-2xl bg-slate-950 px-4 py-3 text-white dark:bg-cyan-400 dark:text-slate-950">
@@ -512,28 +560,34 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
                       </GlassCard>
 
                       <div className="space-y-6">
-                        <GlassCard>
+                        <GlassCard className="border-slate-200/70 bg-white/80 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="text-sm font-semibold text-slate-900 dark:text-white">Pending donations</p>
-                              <p className="text-sm text-slate-500">These donations have been initiated but not completed yet.</p>
+                              <p className="text-sm text-slate-500">Active donations that are still waiting to be completed.</p>
                             </div>
-                            <span className="rounded-full bg-amber-500/10 px-3 py-1 text-sm font-medium text-amber-700 dark:text-amber-300">{pendingDonations.length}</span>
+                            <div className="text-right">
+                              <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">{pendingDonations.length}</span>
+                              <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(pendingDonationAmount)}</p>
+                            </div>
                           </div>
                           <div className="mt-4 space-y-3">
                             {pendingDonations.length ? pendingDonations.map((plan) => (
                               <div key={plan._id} className="rounded-3xl border border-slate-200/80 bg-slate-50/90 p-4 dark:border-slate-800 dark:bg-slate-950/70">
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                   <div>
-                                    <p className="font-medium text-slate-900 dark:text-white">{plan.title}</p>
+                                    <div className="flex items-center gap-2">
+                                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium uppercase tracking-[0.18em] text-slate-600 dark:bg-slate-800 dark:text-slate-300">Pending</span>
+                                      <p className="font-medium text-slate-900 dark:text-white">{plan.title}</p>
+                                    </div>
                                     <p className="mt-1 text-sm text-slate-500">Initiated: {formatCalendarDate(plan.initiatedAt)}</p>
-                                    <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(plan.amount)}</p>
+                                    <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">{formatCurrency(plan.amount)}</p>
                                   </div>
                                   <div className="flex flex-wrap gap-2">
-                                    <button type="button" onClick={() => updateDonationStatus.mutate({ id: plan._id, status: "completed" })} className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-medium text-white">
+                                    <button type="button" onClick={() => updateDonationStatus.mutate({ id: plan._id, status: "completed" })} className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white dark:bg-cyan-400 dark:text-slate-950">
                                       Mark completed
                                     </button>
-                                    <button type="button" onClick={() => deleteDonation.mutate(plan._id)} className="rounded-full border border-rose-300 px-4 py-2 text-sm font-medium text-rose-600 dark:border-rose-800 dark:text-rose-300">
+                                    <button type="button" onClick={() => openRemoveDonationModal(plan._id)} className="rounded-full border border-rose-300 px-4 py-2 text-sm font-medium text-rose-600 dark:border-rose-800 dark:text-rose-300">
                                       Remove
                                     </button>
                                   </div>
@@ -545,29 +599,35 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
                           </div>
                         </GlassCard>
 
-                        <GlassCard>
+                        <GlassCard className="border-slate-200/70 bg-white/80 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="text-sm font-semibold text-slate-900 dark:text-white">Completed donations</p>
-                              <p className="text-sm text-slate-500">Each entry shows when the donation started and when it was completed.</p>
+                              <p className="text-sm text-slate-500">Finished donations with their initiated and completed dates.</p>
                             </div>
-                            <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm font-medium text-emerald-700 dark:text-emerald-300">{completedDonations.length}</span>
+                            <div className="text-right">
+                              <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">{completedDonations.length}</span>
+                              <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(completedDonationAmount)}</p>
+                            </div>
                           </div>
                           <div className="mt-4 space-y-3">
                             {completedDonations.length ? completedDonations.map((plan) => (
-                              <div key={plan._id} className="rounded-3xl border border-slate-200/80 bg-white/70 p-4 dark:border-slate-800 dark:bg-slate-950/70">
+                              <div key={plan._id} className="rounded-3xl border border-slate-200/80 bg-slate-50/90 p-4 dark:border-slate-800 dark:bg-slate-950/70">
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                   <div>
-                                    <p className="font-medium text-slate-900 dark:text-white">{plan.title}</p>
+                                    <div className="flex items-center gap-2">
+                                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium uppercase tracking-[0.18em] text-slate-600 dark:bg-slate-800 dark:text-slate-300">Completed</span>
+                                      <p className="font-medium text-slate-900 dark:text-white">{plan.title}</p>
+                                    </div>
                                     <p className="mt-1 text-sm text-slate-500">Initiated: {formatCalendarDate(plan.initiatedAt)}</p>
                                     <p className="text-sm text-slate-500">Completed: {plan.completedAt ? formatCalendarDate(plan.completedAt) : "Not set"}</p>
-                                    <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(plan.amount)}</p>
+                                    <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">{formatCurrency(plan.amount)}</p>
                                   </div>
                                   <div className="flex flex-wrap gap-2">
                                     <button type="button" onClick={() => updateDonationStatus.mutate({ id: plan._id, status: "pending" })} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
                                       Move to pending
                                     </button>
-                                    <button type="button" onClick={() => deleteDonation.mutate(plan._id)} className="rounded-full border border-rose-300 px-4 py-2 text-sm font-medium text-rose-600 dark:border-rose-800 dark:text-rose-300">
+                                    <button type="button" onClick={() => openRemoveDonationModal(plan._id)} className="rounded-full border border-rose-300 px-4 py-2 text-sm font-medium text-rose-600 dark:border-rose-800 dark:text-rose-300">
                                       Remove
                                     </button>
                                   </div>
@@ -589,8 +649,8 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
       </div>
 
       {quickExpenseOpen ? (
-        <div className="fixed inset-0 z-40 bg-slate-950/45 p-4 backdrop-blur-sm">
-          <div className="mx-auto mt-20 max-w-lg rounded-[32px] border border-white/30 bg-white/80 p-6 shadow-2xl dark:border-white/10 dark:bg-slate-900/90">
+        <div className="fixed inset-0 z-40 bg-slate-950/45 p-4 backdrop-blur-sm" onClick={() => setQuickExpenseOpen(false)}>
+          <div className="mx-auto mt-20 max-w-lg rounded-[32px] border border-white/30 bg-white/80 p-6 shadow-2xl dark:border-white/10 dark:bg-slate-900/90" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="text-xl font-semibold">New transaction</h3>
               <button onClick={() => setQuickExpenseOpen(false)} className="text-sm text-slate-500">Close</button>
@@ -608,6 +668,27 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
               <input type="datetime-local" value={transactionDraft.occurredAt.slice(0, 16)} onChange={(event) => setTransactionDraft((current) => ({ ...current, occurredAt: new Date(event.target.value).toISOString() }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <button className="w-full rounded-2xl bg-slate-950 px-4 py-3 text-white dark:bg-cyan-400 dark:text-slate-950">Save transaction</button>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {donationToRemove ? (
+        <div className="fixed inset-0 z-50 bg-slate-950/45 p-4 backdrop-blur-sm" onClick={() => setDonationToRemove(null)}>
+          <div className="mx-auto mt-24 max-w-md rounded-[32px] border border-white/30 bg-white/90 p-6 shadow-2xl dark:border-white/10 dark:bg-slate-900/95" onClick={(event) => event.stopPropagation()}>
+            <p className="text-sm uppercase tracking-[0.24em] text-rose-500">Confirm removal</p>
+            <h3 className="mt-3 text-2xl font-semibold text-slate-900 dark:text-white">Remove this donation?</h3>
+            <p className="mt-3 text-sm text-slate-500">
+              <span className="font-medium text-slate-900 dark:text-white">{donationToRemove.title}</span>
+              {" "}for {formatCurrency(donationToRemove.amount)} will be deleted from your donation tracker.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button type="button" onClick={() => setDonationToRemove(null)} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
+                Cancel
+              </button>
+              <button type="button" onClick={() => deleteDonation.mutate(donationToRemove._id)} className="rounded-full bg-rose-500 px-4 py-2 text-sm font-medium text-white">
+                {deleteDonation.isPending ? "Removing..." : "Remove donation"}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
