@@ -16,6 +16,7 @@ import type { DashboardSummary, DonationPlan, Transaction, TransactionKind } fro
 const queryClient = new QueryClient();
 type DonationDraft = { title: string; amount: number; status: "pending" | "completed"; initiatedAt: string; completedAt: string | null };
 type TransactionDraft = Omit<Transaction, "_id" | "amount"> & { amount: number | "" };
+type PdfExportDraft = { startDate: string; endDate: string; section: string };
 
 function useThemeMode() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -247,7 +248,13 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [filters, setFilters] = useState({ q: "", kind: "all", month: currentMonth, section: "all" });
   const [quickExpenseOpen, setQuickExpenseOpen] = useState(false);
+  const [pdfExportOpen, setPdfExportOpen] = useState(false);
   const [donationToRemove, setDonationToRemove] = useState<DonationPlan | null>(null);
+  const [pdfExportDraft, setPdfExportDraft] = useState<PdfExportDraft>({
+    startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10),
+    endDate: new Date().toISOString().slice(0, 10),
+    section: "all",
+  });
   const [transactionDraft, setTransactionDraft] = useState<TransactionDraft>({ title: "", amount: "", category: "Food", section: "family", kind: "expense", occurredAt: new Date().toISOString() });
   const [donationDraft, setDonationDraft] = useState<DonationDraft>({ title: "Community support", amount: 3000, status: "pending", initiatedAt: "2026-04-06T00:00:00.000Z", completedAt: null });
 
@@ -297,6 +304,65 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
     onError: (error: Error) => toast.error(error.message),
   });
   const bulkDelete = useMutation({ mutationFn: api.deleteTransactions, onSuccess: () => { toast.success("Selected rows deleted."); invalidate(); } });
+  const exportTransactionsPdf = useMutation({
+    mutationFn: async (payload: PdfExportDraft) => {
+      const params = new URLSearchParams({
+        q: "",
+        kind: "all",
+        startDate: payload.startDate,
+        endDate: payload.endDate,
+      });
+      if (payload.section !== "all") {
+        params.set("section", payload.section);
+      }
+
+      const rows = await api.transactions(params);
+      if (!rows.length) {
+        throw new Error("No transactions found for this date range and section.");
+      }
+
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+        import("jspdf"),
+        import("jspdf-autotable"),
+      ]);
+
+      const doc = new jsPDF();
+      const totalIncome = rows.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0);
+      const totalExpense = rows.filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.amount, 0);
+      const totalDonation = rows.filter((item) => item.kind === "donation").reduce((sum, item) => sum + item.amount, 0);
+
+      doc.setFontSize(18);
+      doc.text("Transaction Report", 14, 18);
+      doc.setFontSize(10);
+      doc.text(`Section: ${payload.section === "all" ? "all sections" : payload.section}`, 14, 28);
+      doc.text(`Date range: ${payload.startDate} to ${payload.endDate}`, 14, 34);
+      doc.text(`Income: ${formatCurrency(totalIncome)}`, 14, 44);
+      doc.text(`Expense: ${formatCurrency(totalExpense)}`, 78, 44);
+      doc.text(`Donation: ${formatCurrency(totalDonation)}`, 145, 44);
+
+      autoTable(doc, {
+        startY: 52,
+        head: [["Date", "Title", "Category", "Section", "Type", "Amount"]],
+        body: rows.map((row) => [
+          formatCalendarDate(row.occurredAt),
+          row.title,
+          row.category,
+          row.section,
+          row.kind,
+          formatCurrency(row.amount),
+        ]),
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [15, 23, 42] },
+      });
+
+      doc.save(`transactions-${payload.section}-${payload.startDate}-to-${payload.endDate}.pdf`);
+    },
+    onSuccess: () => {
+      setPdfExportOpen(false);
+      toast.success("PDF downloaded successfully.");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
   const logout = useMutation({
     mutationFn: api.logout,
     onSuccess: async () => {
@@ -366,6 +432,17 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
 
     return [...sections];
   }, [transactions.data]);
+  const openQuickTransaction = (kind: TransactionKind) => {
+    setTransactionDraft({
+      title: "",
+      amount: "",
+      category: kind === "income" ? "Salary" : kind === "donation" ? "Donation" : "Food",
+      section: kind === "income" ? "self" : "family",
+      kind,
+      occurredAt: new Date().toISOString(),
+    });
+    setQuickExpenseOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.18),_transparent_35%),linear-gradient(135deg,#f8fafc,#dbeafe_45%,#f8fafc)] text-slate-900 transition-colors dark:bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.12),_transparent_35%),linear-gradient(135deg,#020617,#0f172a_45%,#020617)] dark:text-white">
@@ -410,9 +487,19 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
         </aside>
 
         <main className="space-y-6">
-          <div>
-            <p className="text-sm uppercase tracking-[0.28em] text-cyan-600">April 2026</p>
-            <h2 className="mt-2 text-3xl font-semibold">Money, mission, and momentum</h2>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-sm uppercase tracking-[0.28em] text-cyan-600">April 2026</p>
+              <h2 className="mt-2 text-3xl font-semibold">Money, mission, and momentum</h2>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button type="button" onClick={() => openQuickTransaction("income")} className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
+                Add income
+              </button>
+              <button type="button" onClick={() => openQuickTransaction("expense")} className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white dark:bg-cyan-400 dark:text-slate-950">
+                Add expense
+              </button>
+            </div>
           </div>
 
           <AnimatePresence mode="wait" initial={false}>
@@ -496,6 +583,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
                       loading={transactions.isLoading}
                       onDeleteSelected={(ids) => ids.length && bulkDelete.mutate(ids)}
                       onRemoveDonation={openRemoveDonationModal}
+                      onExportPdf={() => setPdfExportOpen(true)}
                     />
                   </div>
                 } />
@@ -694,6 +782,57 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
               <input type="datetime-local" value={transactionDraft.occurredAt.slice(0, 16)} onChange={(event) => setTransactionDraft((current) => ({ ...current, occurredAt: new Date(event.target.value).toISOString() }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <button className="w-full rounded-2xl bg-slate-950 px-4 py-3 text-white dark:bg-cyan-400 dark:text-slate-950">Save transaction</button>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {pdfExportOpen ? (
+        <div className="fixed inset-0 z-50 bg-slate-950/45 p-4 backdrop-blur-sm" onClick={() => setPdfExportOpen(false)}>
+          <div className="mx-auto mt-24 max-w-md rounded-[32px] border border-white/30 bg-white/90 p-6 shadow-2xl dark:border-white/10 dark:bg-slate-900/95" onClick={(event) => event.stopPropagation()}>
+            <p className="text-sm uppercase tracking-[0.24em] text-cyan-600">Export PDF</p>
+            <h3 className="mt-3 text-2xl font-semibold text-slate-900 dark:text-white">Download transaction report</h3>
+            <p className="mt-2 text-sm text-slate-500">Choose a date range and a section like family or self.</p>
+            <div className="mt-5 space-y-4">
+              <div>
+                <label className="mb-2 block text-sm text-slate-500">Start date</label>
+                <input type="date" value={pdfExportDraft.startDate} onChange={(event) => setPdfExportDraft((current) => ({ ...current, startDate: event.target.value }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-slate-500">End date</label>
+                <input type="date" value={pdfExportDraft.endDate} onChange={(event) => setPdfExportDraft((current) => ({ ...current, endDate: event.target.value }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-slate-500">Section</label>
+                <select value={pdfExportDraft.section} onChange={(event) => setPdfExportDraft((current) => ({ ...current, section: event.target.value }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80">
+                  <option value="all">All sections</option>
+                  {availableSections.map((section) => (
+                    <option key={section} value={section}>{section}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button type="button" onClick={() => setPdfExportOpen(false)} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!pdfExportDraft.startDate || !pdfExportDraft.endDate) {
+                    toast.error("Please choose both start and end dates.");
+                    return;
+                  }
+                  if (pdfExportDraft.startDate > pdfExportDraft.endDate) {
+                    toast.error("Start date must be before end date.");
+                    return;
+                  }
+                  exportTransactionsPdf.mutate(pdfExportDraft);
+                }}
+                className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white dark:bg-cyan-400 dark:text-slate-950"
+              >
+                {exportTransactionsPdf.isPending ? "Generating..." : "Download PDF"}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

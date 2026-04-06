@@ -17,9 +17,10 @@ interface TransactionTableProps {
   loading?: boolean;
   onDeleteSelected: (ids: string[]) => void;
   onRemoveDonation?: (id: string) => void;
+  onExportPdf?: () => void;
 }
 
-export function TransactionTable({ rows, loading, onDeleteSelected, onRemoveDonation }: TransactionTableProps) {
+export function TransactionTable({ rows, loading, onDeleteSelected, onRemoveDonation, onExportPdf }: TransactionTableProps) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const columns = useMemo<ColumnDef<Transaction>[]>(
@@ -100,6 +101,10 @@ export function TransactionTable({ rows, loading, onDeleteSelected, onRemoveDona
           <button type="button" onClick={exportCsv} className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm dark:border-slate-700">
             <Download className="h-4 w-4" />
             CSV
+          </button>
+          <button type="button" onClick={onExportPdf} className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm dark:border-slate-700">
+            <Download className="h-4 w-4" />
+            PDF
           </button>
           <button type="button" onClick={() => onDeleteSelected(selectedIds)} disabled={!selectedIds.length} className="inline-flex items-center gap-2 rounded-full bg-rose-500 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">
             <Trash2 className="h-4 w-4" />

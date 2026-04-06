@@ -28,7 +28,9 @@ transactionsRouter.get("/", async (req, res) => {
             query.occurredAt.$gte = new Date(startDate);
         }
         if (endDate) {
-            query.occurredAt.$lte = new Date(endDate);
+            const end = new Date(endDate);
+            end.setUTCHours(23, 59, 59, 999);
+            query.occurredAt.$lte = end;
         }
     }
     if (section && section !== "all") {
