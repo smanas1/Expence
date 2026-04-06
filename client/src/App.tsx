@@ -105,7 +105,7 @@ function LoginGate({ children, ready, onAuthenticated, autoLogin = false }: { ch
   );
 }
 
-function DashboardView({ summary, openQuickExpense }: { summary?: DashboardSummary; openQuickExpense: () => void }) {
+function DashboardView({ summary }: { summary?: DashboardSummary }) {
   const chartData = useMemo(() => {
     const base = new Map<string, { month: string; income: number; expense: number; donation: number }>();
     summary?.chart.forEach((item) => {
@@ -116,39 +116,49 @@ function DashboardView({ summary, openQuickExpense }: { summary?: DashboardSumma
     return [...base.values()];
   }, [summary]);
 
+  const totals = summary?.totals;
+  const netPosition = (totals?.totalIncome ?? 0) - (totals?.totalExpense ?? 0) - (totals?.totalDonation ?? 0);
+  const recentDonation = summary?.recentTransactions.find((item) => item.kind === "donation");
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "Income", value: summary?.totals?.totalIncome ?? 0, icon: Landmark },
-          { label: "Expenses", value: summary?.totals?.totalExpense ?? 0, icon: Wallet },
-          { label: "Donations", value: summary?.totals?.totalDonation ?? 0, icon: HeartHandshake },
-          { label: "Savings", value: summary?.totals?.totalSavings ?? 0, icon: Bolt },
+          { label: "Income", value: totals?.totalIncome ?? 0, icon: Landmark, tone: "text-emerald-500", surface: "bg-emerald-500/10", note: "All inflows tracked" },
+          { label: "Expenses", value: totals?.totalExpense ?? 0, icon: Wallet, tone: "text-rose-500", surface: "bg-rose-500/10", note: "Outgoings across sections" },
+          { label: "Donations", value: totals?.totalDonation ?? 0, icon: HeartHandshake, tone: "text-cyan-500", surface: "bg-cyan-500/10", note: recentDonation ? `Latest: ${recentDonation.title}` : "No recent donation activity" },
+          { label: "Savings", value: totals?.totalSavings ?? 0, icon: Bolt, tone: "text-amber-500", surface: "bg-amber-500/10", note: netPosition >= 0 ? "Positive direction" : "Needs attention" },
         ].map((item) => (
           <motion.div key={item.label} layout>
-            <GlassCard>
+            <GlassCard className="border-slate-200/80 bg-white/80 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-slate-500">{item.label}</p>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{formatCurrency(item.value)}</p>
+                  <p className="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">{formatCurrency(item.value)}</p>
+                  <p className="mt-2 text-sm text-slate-500">{item.note}</p>
                 </div>
-                <item.icon className="h-5 w-5 text-cyan-500" />
+                <div className={cn("rounded-2xl p-3", item.surface)}>
+                  <item.icon className={cn("h-5 w-5", item.tone)} />
+                </div>
               </div>
             </GlassCard>
           </motion.div>
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
-        <GlassCard>
-          <div className="mb-4 flex items-center justify-between">
+      <div className="grid gap-6 xl:grid-cols-[1.55fr_1fr]">
+        <GlassCard className="border-slate-200/80 bg-white/85 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
+          <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-semibold text-slate-900 dark:text-white">Aggregation-powered cashflow</p>
-              <p className="text-sm text-slate-500">Charts are computed server-side with MongoDB pipelines.</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">Cashflow rhythm</p>
+              <p className="text-sm text-slate-500">A clear comparison between income and expenses across the recent timeline.</p>
             </div>
-            <button type="button" onClick={openQuickExpense} className="rounded-full bg-cyan-500 px-4 py-2 text-sm font-medium text-white">Add expense</button>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="rounded-full bg-cyan-500/10 px-3 py-2 font-medium text-cyan-700 dark:text-cyan-300">Income</span>
+              <span className="rounded-full bg-rose-500/10 px-3 py-2 font-medium text-rose-700 dark:text-rose-300">Expense</span>
+            </div>
           </div>
-          <div className="h-72">
+          <div className="h-80 rounded-[28px] bg-slate-50/90 p-4 dark:bg-slate-950/60">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData}>
                 <defs>
@@ -173,20 +183,27 @@ function DashboardView({ summary, openQuickExpense }: { summary?: DashboardSumma
         </GlassCard>
 
         <div className="space-y-6">
-          <GlassCard>
-            <p className="text-sm font-semibold text-slate-900 dark:text-white">Monthly budgets</p>
+          <GlassCard className="border-slate-200/80 bg-white/85 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Monthly budgets</p>
+                <p className="text-sm text-slate-500">Quick progress by category.</p>
+              </div>
+              <Wallet className="h-5 w-5 text-cyan-500" />
+            </div>
             <div className="mt-4 space-y-4">
               {summary?.budgets?.map((budget) => {
                 const progress = Math.min(100, Math.round(((budget.spent ?? 0) / budget.limit) * 100));
                 return (
-                  <div key={`${budget.category}-${budget.month}`}>
+                  <div key={`${budget.category}-${budget.month}`} className="rounded-3xl bg-slate-50/90 p-4 dark:bg-slate-950/60">
                     <div className="mb-2 flex items-center justify-between text-sm">
-                      <span className="text-slate-700 dark:text-slate-200">{budget.category}</span>
-                      <span className="text-slate-500">{formatCurrency(budget.spent ?? 0)} / {formatCurrency(budget.limit)}</span>
+                      <span className="font-medium text-slate-700 dark:text-slate-200">{budget.category}</span>
+                      <span className="text-slate-500">{progress}%</span>
                     </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                    <div className="h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
                       <div className={cn("h-full rounded-full", progress >= 80 ? "bg-rose-500" : "bg-cyan-500")} style={{ width: `${progress}%` }} />
                     </div>
+                    <p className="mt-3 text-sm text-slate-500">{formatCurrency(budget.spent ?? 0)} spent of {formatCurrency(budget.limit)}</p>
                   </div>
                 );
               })}
@@ -195,16 +212,25 @@ function DashboardView({ summary, openQuickExpense }: { summary?: DashboardSumma
         </div>
       </div>
 
-      <GlassCard>
-        <p className="text-sm font-semibold text-slate-900 dark:text-white">Recent activity</p>
+      <GlassCard className="border-slate-200/80 bg-white/85 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-900 dark:text-white">Recent activity</p>
+            <p className="text-sm text-slate-500">Latest transactions across your workspace.</p>
+          </div>
+          <Clock3 className="h-5 w-5 text-cyan-500" />
+        </div>
         <div className="mt-4 space-y-3">
           {summary?.recentTransactions.map((item) => (
-            <motion.div layout key={item._id} className="flex items-center justify-between rounded-2xl bg-slate-50/90 px-4 py-3 dark:bg-slate-950/70">
+            <motion.div layout key={item._id} className="flex items-center justify-between rounded-3xl bg-slate-50/90 px-4 py-4 dark:bg-slate-950/60">
               <div>
-                <p className="font-medium text-slate-900 dark:text-white">{item.title}</p>
-                <p className="text-sm text-slate-500">{item.category} | {formatRecentDate(item.occurredAt)}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium text-slate-900 dark:text-white">{item.title}</p>
+                  <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-medium uppercase tracking-[0.16em] text-slate-600 dark:bg-slate-800 dark:text-slate-300">{item.kind}</span>
+                </div>
+                <p className="mt-1 text-sm text-slate-500">{item.category} | {formatRecentDate(item.occurredAt)}</p>
               </div>
-              <p className="font-semibold text-slate-900 dark:text-white">{formatCurrency(item.amount)}</p>
+              <p className="text-lg font-semibold text-slate-900 dark:text-white">{formatCurrency(item.amount)}</p>
             </motion.div>
           ))}
         </div>
@@ -392,7 +418,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
           <AnimatePresence mode="wait" initial={false}>
             <motion.div key={location.pathname} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.22 }}>
               <Routes location={location}>
-                <Route path="/" element={<DashboardView summary={summary.data} openQuickExpense={() => setQuickExpenseOpen(true)} />} />
+                <Route path="/" element={<DashboardView summary={summary.data} />} />
                 <Route path="/transactions" element={
                   <div className="space-y-6">
                     <GlassCard className="overflow-hidden">
