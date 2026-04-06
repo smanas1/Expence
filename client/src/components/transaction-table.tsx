@@ -91,28 +91,78 @@ export function TransactionTable({ rows, loading, onDeleteSelected, onRemoveDona
   };
 
   return (
-    <div className="rounded-[28px] border border-white/30 bg-white/70 p-5 shadow-xl shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70">
+    <div className="rounded-[28px] border border-white/30 bg-white/70 p-4 shadow-xl shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70 sm:p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-slate-900 dark:text-white">Monthly Cashflow Ledger</p>
           <p className="text-sm text-slate-500">Track income and expenses by section, month, and category.</p>
         </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={exportCsv} className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm dark:border-slate-700">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <button type="button" onClick={exportCsv} className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm dark:border-slate-700 sm:w-auto">
             <Download className="h-4 w-4" />
             CSV
           </button>
-          <button type="button" onClick={onExportPdf} className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm dark:border-slate-700">
+          <button type="button" onClick={onExportPdf} className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm dark:border-slate-700 sm:w-auto">
             <Download className="h-4 w-4" />
             PDF
           </button>
-          <button type="button" onClick={() => onDeleteSelected(selectedIds)} disabled={!selectedIds.length} className="inline-flex items-center gap-2 rounded-full bg-rose-500 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">
+          <button type="button" onClick={() => onDeleteSelected(selectedIds)} disabled={!selectedIds.length} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-rose-500 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto">
             <Trash2 className="h-4 w-4" />
             Delete Selected
           </button>
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <div className="space-y-3 md:hidden">
+        {loading
+          ? Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="h-36 animate-pulse rounded-3xl bg-slate-100 dark:bg-slate-800" />
+            ))
+          : table.getRowModel().rows.map((row) => (
+              <div key={row.id} className="rounded-3xl bg-slate-50/90 p-4 dark:bg-slate-950/70">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-base font-semibold text-slate-900 dark:text-white">{row.original.title}</p>
+                    <p className="mt-1 text-sm text-slate-500">{formatCalendarDate(row.original.occurredAt)}</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={row.getIsSelected()}
+                    onChange={row.getToggleSelectedHandler()}
+                    className="mt-1 h-4 w-4 rounded border-slate-300"
+                  />
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Section</p>
+                    <p className="mt-1 text-slate-700 dark:text-slate-200">{row.original.section}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Category</p>
+                    <p className="mt-1 text-slate-700 dark:text-slate-200">{row.original.category}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Type</p>
+                    <p className="mt-1 capitalize text-slate-700 dark:text-slate-200">{row.original.kind}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Amount</p>
+                    <p className="mt-1 font-semibold text-slate-900 dark:text-white">{formatCurrency(row.original.amount)}</p>
+                  </div>
+                </div>
+                {row.original.kind === "donation" ? (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveDonation?.(row.original._id)}
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-rose-300 px-3 py-2 text-sm font-medium text-rose-600 dark:border-rose-800 dark:text-rose-300"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Remove
+                  </button>
+                ) : null}
+              </div>
+            ))}
+      </div>
+      <div className="hidden overflow-x-auto md:block">
         <table className="min-w-full border-separate border-spacing-y-2">
           <thead>
             {table.getHeaderGroups().map((group) => (

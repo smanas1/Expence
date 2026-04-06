@@ -4,7 +4,8 @@ import express from "express";
 import mongoose from "mongoose";
 import { config } from "./config.js";
 import { seedDemoUser } from "./lib/seed.js";
-import { requireAuth } from "./middleware/auth.js";
+import { requireAdmin, requireAuth } from "./middleware/auth.js";
+import { adminRouter } from "./routes/admin.js";
 import { authRouter } from "./routes/auth.js";
 import { budgetsRouter } from "./routes/budgets.js";
 import { dashboardRouter } from "./routes/dashboard.js";
@@ -25,6 +26,7 @@ app.use("/api/dashboard", requireAuth, dashboardRouter);
 app.use("/api/transactions", requireAuth, transactionsRouter);
 app.use("/api/budgets", requireAuth, budgetsRouter);
 app.use("/api/donations", requireAuth, donationsRouter);
+app.use("/api/admin", requireAuth, requireAdmin, adminRouter);
 app.use((error, _req, res, _next) => {
     console.error(error);
     res.status(500).json({ message: "Unexpected server error." });

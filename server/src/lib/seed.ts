@@ -16,8 +16,9 @@ const seedTransactions: DashboardSeedTransaction[] = [
 export async function seedDemoUser() {
   const existing = await UserModel.findOne({ email: "demo@fintrack.app" });
   if (existing) {
-    if (!existing.password) {
+    if (!existing.password || existing.role !== "admin") {
       existing.password = "demo1234";
+      existing.role = "admin";
       await existing.save();
     }
 
@@ -28,6 +29,7 @@ export async function seedDemoUser() {
     email: "demo@fintrack.app",
     name: "Anas Rahman",
     password: "demo1234",
+    role: "admin",
   });
 
   await TransactionModel.insertMany(

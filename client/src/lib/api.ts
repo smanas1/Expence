@@ -1,4 +1,4 @@
-import type { BudgetItem, DashboardSummary, DonationPlan, Transaction } from "../types";
+import type { AdminDonation, AdminTransaction, AdminUser, AuthUser, BudgetItem, DashboardSummary, DonationPlan, Transaction } from "../types";
 
 async function request<T>(input: string, init?: RequestInit) {
   const response = await fetch(input, {
@@ -24,12 +24,12 @@ async function request<T>(input: string, init?: RequestInit) {
 
 export const api = {
   login: (email: string, password: string) =>
-    request<{ user: { name: string; email: string } }>("/api/auth/login", {
+    request<{ user: AuthUser }>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
   signup: (payload: { name: string; email: string; password: string }) =>
-    request<{ user: { name: string; email: string } }>("/api/auth/signup", {
+    request<{ user: AuthUser }>("/api/auth/signup", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
@@ -65,5 +65,28 @@ export const api = {
     request<DonationPlan>(`/api/donations/${id}/status`, {
       method: "PATCH",
       body: JSON.stringify({ status }),
+    }),
+  adminUsers: () => request<{ users: AdminUser[] }>("/api/admin/users"),
+  updateAdminUser: (id: string, payload: Partial<Pick<AdminUser, "name" | "email" | "currency" | "role">> & { password?: string }) =>
+    request<{ user: AdminUser }>(`/api/admin/users/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  adminTransactions: (params: URLSearchParams) =>
+    request<{ transactions: AdminTransaction[] }>(`/api/admin/transactions?${params.toString()}`),
+  deleteAdminTransaction: (id: string) =>
+    request<void>(`/api/admin/transactions/${id}`, {
+      method: "DELETE",
+    }),
+  adminDonations: (params: URLSearchParams) =>
+    request<{ donations: AdminDonation[] }>(`/api/admin/donations?${params.toString()}`),
+  updateAdminDonationStatus: (id: string, status: "pending" | "completed") =>
+    request<{ donation: AdminDonation }>(`/api/admin/donations/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+  deleteAdminDonation: (id: string) =>
+    request<void>(`/api/admin/donations/${id}`, {
+      method: "DELETE",
     }),
 };

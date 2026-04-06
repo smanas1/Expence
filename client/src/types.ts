@@ -1,4 +1,13 @@
 export type TransactionKind = "income" | "expense" | "donation";
+export type UserRole = "user" | "admin";
+
+export interface AuthUser {
+  id?: string;
+  name: string;
+  email: string;
+  currency?: string;
+  role: UserRole;
+}
 
 export interface Transaction {
   _id: string;
@@ -8,6 +17,10 @@ export interface Transaction {
   section: string;
   kind: TransactionKind;
   occurredAt: string;
+}
+
+export interface AdminTransaction extends Transaction {
+  user: { id: string; name: string; email: string } | null;
 }
 
 export interface BudgetItem {
@@ -25,6 +38,19 @@ export interface DonationPlan {
   status: "pending" | "completed";
   initiatedAt: string;
   completedAt?: string | null;
+}
+
+export interface AdminDonation extends DonationPlan {
+  user: { id: string; name: string; email: string } | null;
+}
+
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  currency: string;
+  role: UserRole;
+  createdAt: string;
 }
 
 export interface DashboardSummary {

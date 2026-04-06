@@ -22,7 +22,7 @@ authRouter.post("/login", async (req, res) => {
     }
     setSessionCookie(res, String(user._id));
     res.json({
-        user: { id: user._id, name: user.name, email: user.email, currency: user.currency },
+        user: { id: user._id, name: user.name, email: user.email, currency: user.currency, role: user.role },
     });
 });
 authRouter.post("/signup", async (req, res) => {
@@ -42,10 +42,11 @@ authRouter.post("/signup", async (req, res) => {
         name: normalizedName,
         email: normalizedEmail,
         password,
+        role: "user",
     });
     setSessionCookie(res, String(user._id));
     res.status(201).json({
-        user: { id: user._id, name: user.name, email: user.email, currency: user.currency },
+        user: { id: user._id, name: user.name, email: user.email, currency: user.currency, role: user.role },
     });
 });
 authRouter.post("/logout", (_req, res) => {
