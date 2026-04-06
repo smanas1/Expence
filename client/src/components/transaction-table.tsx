@@ -10,10 +10,31 @@ import { Download, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { formatCalendarDate, formatCurrency, formatRecentDate } from "../lib/format";
-import type { Transaction } from "../types";
+import type { Transaction, TransactionKind } from "../types";
 
 function formatCategoryLabel(category?: string) {
   return category?.trim() ? category : "Uncategorized";
+}
+
+function transactionTone(kind: TransactionKind) {
+  if (kind === "income") {
+    return {
+      badge: "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+      amount: "text-emerald-600 dark:text-emerald-300",
+    };
+  }
+
+  if (kind === "expense") {
+    return {
+      badge: "bg-rose-500/10 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300",
+      amount: "text-rose-600 dark:text-rose-300",
+    };
+  }
+
+  return {
+    badge: "bg-cyan-500/10 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-300",
+    amount: "text-cyan-600 dark:text-cyan-300",
+  };
 }
 
 interface TransactionTableProps {
@@ -44,8 +65,8 @@ export function TransactionTable({ rows, loading, onDeleteSelected, onRemoveDona
       { accessorKey: "title", header: "Title" },
       { accessorKey: "section", header: "Section" },
       { accessorKey: "category", header: "Category", cell: ({ row }) => formatCategoryLabel(row.original.category) },
-      { accessorKey: "amount", header: "Amount", cell: ({ row }) => formatCurrency(row.original.amount) },
-      { accessorKey: "kind", header: "Type", cell: ({ row }) => row.original.kind },
+      { accessorKey: "amount", header: "Amount", cell: ({ row }) => <span className={transactionTone(row.original.kind).amount}>{formatCurrency(row.original.amount)}</span> },
+      { accessorKey: "kind", header: "Type", cell: ({ row }) => <span className={`rounded-full px-2.5 py-1 text-xs font-medium uppercase tracking-[0.16em] ${transactionTone(row.original.kind).badge}`}>{row.original.kind}</span> },
       { accessorKey: "occurredAt", header: "When", cell: ({ row }) => <span title={formatRecentDate(row.original.occurredAt)}>{formatCalendarDate(row.original.occurredAt)}</span> },
       {
         id: "actions",
@@ -146,11 +167,11 @@ export function TransactionTable({ rows, loading, onDeleteSelected, onRemoveDona
                   </div>
                   <div>
                     <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Type</p>
-                    <p className="mt-1 capitalize text-slate-700 dark:text-slate-200">{row.original.kind}</p>
+                    <p className={`mt-1 inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-medium uppercase tracking-[0.16em] ${transactionTone(row.original.kind).badge}`}>{row.original.kind}</p>
                   </div>
                   <div>
                     <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Amount</p>
-                    <p className="mt-1 font-semibold text-slate-900 dark:text-white">{formatCurrency(row.original.amount)}</p>
+                    <p className={`mt-1 font-semibold ${transactionTone(row.original.kind).amount}`}>{formatCurrency(row.original.amount)}</p>
                   </div>
                 </div>
                 {row.original.kind === "donation" ? (

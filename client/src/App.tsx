@@ -23,6 +23,27 @@ function formatCategoryLabel(category?: string) {
   return category?.trim() ? category : "Uncategorized";
 }
 
+function transactionTone(kind: TransactionKind) {
+  if (kind === "income") {
+    return {
+      badge: "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+      amount: "text-emerald-600 dark:text-emerald-300",
+    };
+  }
+
+  if (kind === "expense") {
+    return {
+      badge: "bg-rose-500/10 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300",
+      amount: "text-rose-600 dark:text-rose-300",
+    };
+  }
+
+  return {
+    badge: "bg-cyan-500/10 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-300",
+    amount: "text-cyan-600 dark:text-cyan-300",
+  };
+}
+
 function useThemeMode() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     const saved = window.localStorage.getItem("theme") as "light" | "dark" | null;
@@ -124,7 +145,6 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
 
   const totals = summary?.totals;
   const netPosition = (totals?.totalIncome ?? 0) - (totals?.totalExpense ?? 0) - (totals?.totalDonation ?? 0);
-  const recentDonation = summary?.recentTransactions.find((item) => item.kind === "donation");
 
   return (
     <div className="space-y-6">
@@ -132,7 +152,6 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
         {[
           { label: "Income", value: totals?.totalIncome ?? 0, icon: Landmark, tone: "text-emerald-500", surface: "bg-emerald-500/10", note: "All inflows tracked" },
           { label: "Expenses", value: totals?.totalExpense ?? 0, icon: Wallet, tone: "text-rose-500", surface: "bg-rose-500/10", note: "Outgoings across sections" },
-          { label: "Donations", value: totals?.totalDonation ?? 0, icon: HeartHandshake, tone: "text-cyan-500", surface: "bg-cyan-500/10", note: recentDonation ? `Latest: ${recentDonation.title}` : "No recent donation activity" },
           { label: "Savings", value: totals?.totalSavings ?? 0, icon: Bolt, tone: "text-amber-500", surface: "bg-amber-500/10", note: netPosition >= 0 ? "Positive direction" : "Needs attention" },
         ].map((item) => (
           <motion.div key={item.label} layout>
@@ -232,11 +251,11 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-medium text-slate-900 dark:text-white">{item.title}</p>
-                  <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-medium uppercase tracking-[0.16em] text-slate-600 dark:bg-slate-800 dark:text-slate-300">{item.kind}</span>
+                  <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium uppercase tracking-[0.16em]", transactionTone(item.kind).badge)}>{item.kind}</span>
                 </div>
                 <p className="mt-1 text-sm text-slate-500">{formatCategoryLabel(item.category)} | {formatRecentDate(item.occurredAt)}</p>
               </div>
-              <p className="text-lg font-semibold text-slate-900 dark:text-white">{formatCurrency(item.amount)}</p>
+              <p className={cn("text-lg font-semibold", transactionTone(item.kind).amount)}>{formatCurrency(item.amount)}</p>
             </motion.div>
           ))}
         </div>
@@ -395,11 +414,11 @@ function AdminView({
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-medium text-slate-900 dark:text-white">{item.title}</p>
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium uppercase tracking-[0.16em] text-slate-600 dark:bg-slate-800 dark:text-slate-300">{item.kind}</span>
+                      <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium uppercase tracking-[0.16em]", transactionTone(item.kind).badge)}>{item.kind}</span>
                     </div>
                     <p className="mt-1 text-sm text-slate-500">{item.user?.name ?? "Unknown user"} | {item.user?.email ?? "No email"}</p>
                     <p className="mt-1 text-sm text-slate-500">{formatCategoryLabel(item.category)} | {item.section} | {formatCalendarDate(item.occurredAt)}</p>
-                    <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">{formatCurrency(item.amount)}</p>
+                    <p className={cn("mt-2 text-lg font-semibold", transactionTone(item.kind).amount)}>{formatCurrency(item.amount)}</p>
                   </div>
                   <button type="button" onClick={() => onDeleteTransaction(item._id)} className="w-full rounded-full border border-rose-300 px-4 py-2 text-sm font-medium text-rose-600 dark:border-rose-800 dark:text-rose-300 sm:w-auto">
                     {deletingTransactionId === item._id ? "Removing..." : "Delete"}
@@ -633,7 +652,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
       const doc = new jsPDF();
       const totalIncome = rows.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0);
       const totalExpense = rows.filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.amount, 0);
-      const totalDonation = rows.filter((item) => item.kind === "donation").reduce((sum, item) => sum + item.amount, 0);
+      const availableBalance = totalIncome - totalExpense;
 
       doc.setFontSize(18);
       doc.text("Transaction Report", 14, 18);
@@ -642,7 +661,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
       doc.text(`Date range: ${payload.startDate} to ${payload.endDate}`, 14, 34);
       doc.text(`Income: ${formatCurrency(totalIncome)}`, 14, 44);
       doc.text(`Expense: ${formatCurrency(totalExpense)}`, 78, 44);
-      doc.text(`Donation: ${formatCurrency(totalDonation)}`, 145, 44);
+      doc.text(`Available balance: ${formatCurrency(availableBalance)}`, 145, 44);
 
       autoTable(doc, {
         startY: 52,
@@ -657,6 +676,36 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
         ]),
         styles: { fontSize: 9, cellPadding: 3 },
         headStyles: { fillColor: [15, 23, 42] },
+        didParseCell: (hookData) => {
+          if (hookData.section !== "body") {
+            return;
+          }
+
+          const row = rows[hookData.row.index];
+          if (!row) {
+            return;
+          }
+
+          if (hookData.column.index === 4) {
+            if (row.kind === "income") {
+              hookData.cell.styles.textColor = [5, 150, 105];
+              hookData.cell.styles.fontStyle = "bold";
+            } else if (row.kind === "expense") {
+              hookData.cell.styles.textColor = [225, 29, 72];
+              hookData.cell.styles.fontStyle = "bold";
+            }
+          }
+
+          if (hookData.column.index === 5) {
+            if (row.kind === "income") {
+              hookData.cell.styles.textColor = [5, 150, 105];
+              hookData.cell.styles.fontStyle = "bold";
+            } else if (row.kind === "expense") {
+              hookData.cell.styles.textColor = [225, 29, 72];
+              hookData.cell.styles.fontStyle = "bold";
+            }
+          }
+        },
       });
 
       doc.save(`transactions-${payload.section}-${payload.startDate}-to-${payload.endDate}.pdf`);
