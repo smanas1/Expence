@@ -1,9 +1,7 @@
 import { format, formatDistanceToNow, formatRelative } from "date-fns";
 
 export function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("bn-BD", {
-    style: "currency",
-    currency: "BDT",
+  return new Intl.NumberFormat("en-BD", {
     maximumFractionDigits: 0,
   }).format(amount);
 }

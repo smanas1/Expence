@@ -14,6 +14,7 @@ import { cn } from "./lib/utils";
 import type { DashboardSummary, DonationPlan, Transaction, TransactionKind } from "./types";
 
 const queryClient = new QueryClient();
+type AuthUser = { name: string; email: string };
 type DonationDraft = { title: string; amount: number; status: "pending" | "completed"; initiatedAt: string; completedAt: string | null };
 type TransactionDraft = Omit<Transaction, "_id" | "amount"> & { amount: number | "" };
 type PdfExportDraft = { startDate: string; endDate: string; section: string };
@@ -49,7 +50,7 @@ function GlassCard({ children, className = "" }: { children: ReactNode; classNam
   );
 }
 
-function LoginGate({ children, ready, onAuthenticated, autoLogin = false }: { children: ReactNode; ready: boolean; onAuthenticated: () => void; autoLogin?: boolean }) {
+function LoginGate({ children, ready, onAuthenticated, autoLogin = false }: { children: ReactNode; ready: boolean; onAuthenticated: (user: AuthUser) => void; autoLogin?: boolean }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [credentials, setCredentials] = useState({ name: "Anas Rahman", email: "demo@fintrack.app", password: "demo1234" });
   const authMutation = useMutation({
@@ -57,8 +58,8 @@ function LoginGate({ children, ready, onAuthenticated, autoLogin = false }: { ch
       mode === "signup"
         ? api.signup({ name: credentials.name, email: credentials.email, password: credentials.password })
         : api.login(credentials.email, credentials.password),
-    onSuccess: () => {
-      onAuthenticated();
+    onSuccess: (data) => {
+      onAuthenticated(data.user);
       toast.success(mode === "signup" ? "Account created successfully." : "Signed in successfully.");
     },
     onError: (error: Error) => toast.error(error.message),
@@ -240,7 +241,7 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
   );
 }
 
-function AppShell({ onLogout }: { onLogout: () => void }) {
+function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | null }) {
   const queryClientLocal = useQueryClient();
   const { theme, toggle } = useThemeMode();
   const location = useLocation();
@@ -454,6 +455,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
             <div>
               <p className="text-xs uppercase tracking-[0.35em] text-cyan-600">FinTrack</p>
               <h1 className="mt-2 text-2xl font-semibold">BDT Console</h1>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{user?.name ?? "Guest user"}</p>
             </div>
             <div className="flex items-center gap-2">
               <button type="button" onClick={toggle} className="rounded-full border border-white/30 p-2 dark:border-white/10" aria-label="Toggle theme">
@@ -864,10 +866,11 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
 function RoutedApp() {
   const [ready, setReady] = useState(false);
   const [autoLogin, setAutoLogin] = useState(true);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
   return (
-    <LoginGate ready={ready} autoLogin={autoLogin} onAuthenticated={() => { setReady(true); setAutoLogin(false); }}>
-      <AppShell onLogout={() => { setReady(false); setAutoLogin(false); }} />
+    <LoginGate ready={ready} autoLogin={autoLogin} onAuthenticated={(authenticatedUser) => { setUser(authenticatedUser); setReady(true); setAutoLogin(false); }}>
+      <AppShell onLogout={() => { setUser(null); setReady(false); setAutoLogin(false); }} user={user} />
     </LoginGate>
   );
 }
