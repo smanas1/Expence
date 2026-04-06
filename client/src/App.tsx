@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowDownCircle, ArrowUpCircle, Bolt, CheckCircle2, Clock3, HeartHandshake, Landmark, Moon, Search, SunMedium, Wallet } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Bolt, CheckCircle2, Clock3, HeartHandshake, Landmark, LogOut, Moon, Search, SunMedium, Wallet } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -15,6 +15,7 @@ import type { DashboardSummary, Transaction, TransactionKind } from "./types";
 
 const queryClient = new QueryClient();
 type DonationDraft = { title: string; amount: number; status: "pending" | "completed"; initiatedAt: string; completedAt: string | null };
+type TransactionDraft = Omit<Transaction, "_id" | "amount"> & { amount: number | "" };
 
 function useThemeMode() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -47,36 +48,58 @@ function GlassCard({ children, className = "" }: { children: ReactNode; classNam
   );
 }
 
-function LoginGate({ children }: { children: ReactNode }) {
-  const [ready, setReady] = useState(false);
-  const [credentials, setCredentials] = useState({ email: "demo@fintrack.app", password: "demo1234" });
-  const login = useMutation({
-    mutationFn: () => api.login(credentials.email, credentials.password),
+function LoginGate({ children, ready, onAuthenticated, autoLogin = false }: { children: ReactNode; ready: boolean; onAuthenticated: () => void; autoLogin?: boolean }) {
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [credentials, setCredentials] = useState({ name: "Anas Rahman", email: "demo@fintrack.app", password: "demo1234" });
+  const authMutation = useMutation({
+    mutationFn: () =>
+      mode === "signup"
+        ? api.signup({ name: credentials.name, email: credentials.email, password: credentials.password })
+        : api.login(credentials.email, credentials.password),
     onSuccess: () => {
-      setReady(true);
-      toast.success("Signed in with secure HttpOnly cookie session.");
+      onAuthenticated();
+      toast.success(mode === "signup" ? "Account created successfully." : "Signed in successfully.");
     },
     onError: (error: Error) => toast.error(error.message),
   });
-  const { mutate: triggerLogin, isPending } = login;
+  const { mutate: triggerAuth, isPending } = authMutation;
 
   useEffect(() => {
-    triggerLogin();
-  }, [triggerLogin]);
+    if (autoLogin) {
+      triggerAuth();
+    }
+  }, [autoLogin, triggerAuth]);
 
   if (ready) return <>{children}</>;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.22),_transparent_35%),linear-gradient(135deg,#f8fafc,#dbeafe_45%,#f8fafc)] px-4 dark:bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.15),_transparent_35%),linear-gradient(135deg,#020617,#0f172a_45%,#020617)]">
-      <form onSubmit={(event) => { event.preventDefault(); login.mutate(); }} className="w-full max-w-md rounded-[32px] border border-white/40 bg-white/70 p-8 shadow-2xl shadow-cyan-950/10 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/75">
+      <form onSubmit={(event) => { event.preventDefault(); authMutation.mutate(); }} className="w-full max-w-md rounded-[32px] border border-white/40 bg-white/70 p-8 shadow-2xl shadow-cyan-950/10 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/75">
         <p className="text-sm uppercase tracking-[0.32em] text-cyan-600">FinTrack</p>
-        <h1 className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white">Modern finance command center</h1>
-        <p className="mt-2 text-sm text-slate-500">Demo credentials are prefilled so you can jump straight into the dashboard.</p>
+        <h1 className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white">{mode === "signup" ? "Create your finance workspace" : "Modern finance command center"}</h1>
+        <p className="mt-2 text-sm text-slate-500">
+          {mode === "signup"
+            ? "Set up a new account and start tracking income, expenses, and donations right away."
+            : "Demo credentials are prefilled so you can jump straight into the dashboard."}
+        </p>
+        <div className="mt-6 inline-flex rounded-2xl bg-slate-100 p-1 dark:bg-slate-800">
+          <button type="button" onClick={() => setMode("login")} className={cn("rounded-2xl px-4 py-2 text-sm font-medium transition-colors", mode === "login" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-white" : "text-slate-500")}>
+            Log in
+          </button>
+          <button type="button" onClick={() => setMode("signup")} className={cn("rounded-2xl px-4 py-2 text-sm font-medium transition-colors", mode === "signup" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-white" : "text-slate-500")}>
+            Sign up
+          </button>
+        </div>
         <div className="mt-6 space-y-4">
+          {mode === "signup" ? (
+            <input value={credentials.name} onChange={(event) => setCredentials((current) => ({ ...current, name: event.target.value }))} placeholder="Full name" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 outline-none dark:border-slate-700 dark:bg-slate-950/80" />
+          ) : null}
           <input value={credentials.email} onChange={(event) => setCredentials((current) => ({ ...current, email: event.target.value }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 outline-none dark:border-slate-700 dark:bg-slate-950/80" />
           <input type="password" value={credentials.password} onChange={(event) => setCredentials((current) => ({ ...current, password: event.target.value }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 outline-none dark:border-slate-700 dark:bg-slate-950/80" />
         </div>
-        <button className="mt-6 w-full rounded-2xl bg-slate-950 px-4 py-3 text-white dark:bg-cyan-400 dark:text-slate-950">{isPending ? "Starting workspace..." : "Enter Dashboard"}</button>
+        <button className="mt-6 w-full rounded-2xl bg-slate-950 px-4 py-3 text-white dark:bg-cyan-400 dark:text-slate-950">
+          {isPending ? (mode === "signup" ? "Creating account..." : "Starting workspace...") : (mode === "signup" ? "Create account" : "Enter Dashboard")}
+        </button>
       </form>
     </div>
   );
@@ -151,15 +174,6 @@ function DashboardView({ summary, openQuickExpense }: { summary?: DashboardSumma
 
         <div className="space-y-6">
           <GlassCard>
-            <p className="text-sm font-semibold text-slate-900 dark:text-white">Financial health</p>
-            <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-              <div className={cn("h-full rounded-full transition-all", (summary?.healthScore ?? 0) >= 70 ? "bg-emerald-500" : "bg-amber-500")} style={{ width: `${summary?.healthScore ?? 0}%` }} />
-            </div>
-            <p className="mt-4 text-3xl font-semibold text-slate-900 dark:text-white">{summary?.healthScore ?? 0}/100</p>
-            <p className="mt-2 text-sm text-slate-500">Savings-to-expense ratio plus budget discipline rolled into a single score.</p>
-          </GlassCard>
-
-          <GlassCard>
             <p className="text-sm font-semibold text-slate-900 dark:text-white">Monthly budgets</p>
             <div className="mt-4 space-y-4">
               {summary?.budgets?.map((budget) => {
@@ -199,7 +213,7 @@ function DashboardView({ summary, openQuickExpense }: { summary?: DashboardSumma
   );
 }
 
-function AppShell() {
+function AppShell({ onLogout }: { onLogout: () => void }) {
   const queryClientLocal = useQueryClient();
   const { theme, toggle } = useThemeMode();
   const location = useLocation();
@@ -207,7 +221,7 @@ function AppShell() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [filters, setFilters] = useState({ q: "", kind: "all", month: currentMonth, section: "all" });
   const [quickExpenseOpen, setQuickExpenseOpen] = useState(false);
-  const [transactionDraft, setTransactionDraft] = useState<Omit<Transaction, "_id">>({ title: "", amount: 0, category: "Food", section: "self", kind: "expense", occurredAt: new Date().toISOString() });
+  const [transactionDraft, setTransactionDraft] = useState<TransactionDraft>({ title: "", amount: "", category: "Food", section: "family", kind: "expense", occurredAt: new Date().toISOString() });
   const [donationDraft, setDonationDraft] = useState<DonationDraft>({ title: "Community support", amount: 3000, status: "pending", initiatedAt: "2026-04-06T00:00:00.000Z", completedAt: null });
 
   const summary = useQuery({ queryKey: ["summary"], queryFn: api.summary });
@@ -221,10 +235,10 @@ function AppShell() {
   };
 
   const addTransaction = useMutation({
-    mutationFn: api.addTransaction,
+    mutationFn: (payload: TransactionDraft) => api.addTransaction({ ...payload, amount: Number(payload.amount) }),
     onSuccess: () => {
       setQuickExpenseOpen(false);
-      setTransactionDraft({ title: "", amount: 0, category: "Food", section: "self", kind: "expense", occurredAt: new Date().toISOString() });
+      setTransactionDraft({ title: "", amount: "", category: "Food", section: "family", kind: "expense", occurredAt: new Date().toISOString() });
       toast.success("Transaction added successfully.");
       invalidate();
     },
@@ -246,7 +260,24 @@ function AppShell() {
       invalidate();
     },
   });
+  const deleteDonation = useMutation({
+    mutationFn: api.deleteDonation,
+    onSuccess: () => {
+      toast.success("Donation removed.");
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
   const bulkDelete = useMutation({ mutationFn: api.deleteTransactions, onSuccess: () => { toast.success("Selected rows deleted."); invalidate(); } });
+  const logout = useMutation({
+    mutationFn: api.logout,
+    onSuccess: async () => {
+      await queryClientLocal.clear();
+      toast.success("Logged out.");
+      onLogout();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const donationItems = donations.data?.donations ?? [];
   const pendingDonations = donationItems.filter((item) => item.status === "pending");
@@ -306,9 +337,14 @@ function AppShell() {
               <p className="text-xs uppercase tracking-[0.35em] text-cyan-600">FinTrack</p>
               <h1 className="mt-2 text-2xl font-semibold">BDT Console</h1>
             </div>
-            <button type="button" onClick={toggle} className="rounded-full border border-white/30 p-2 dark:border-white/10" aria-label="Toggle theme">
-              {theme === "dark" ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </button>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={toggle} className="rounded-full border border-white/30 p-2 dark:border-white/10" aria-label="Toggle theme">
+                {theme === "dark" ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </button>
+              <button type="button" onClick={() => void logout.mutateAsync()} className="rounded-full border border-white/30 p-2 dark:border-white/10" aria-label="Log out">
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           <button type="button" onClick={() => setPaletteOpen(true)} className="mt-6 flex w-full items-center gap-3 rounded-2xl border border-white/40 bg-white/60 px-4 py-3 text-sm text-slate-500 dark:border-white/10 dark:bg-slate-950/60 dark:text-slate-400">
@@ -493,9 +529,14 @@ function AppShell() {
                                     <p className="mt-1 text-sm text-slate-500">Initiated: {formatCalendarDate(plan.initiatedAt)}</p>
                                     <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(plan.amount)}</p>
                                   </div>
-                                  <button type="button" onClick={() => updateDonationStatus.mutate({ id: plan._id, status: "completed" })} className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-medium text-white">
-                                    Mark completed
-                                  </button>
+                                  <div className="flex flex-wrap gap-2">
+                                    <button type="button" onClick={() => updateDonationStatus.mutate({ id: plan._id, status: "completed" })} className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-medium text-white">
+                                      Mark completed
+                                    </button>
+                                    <button type="button" onClick={() => deleteDonation.mutate(plan._id)} className="rounded-full border border-rose-300 px-4 py-2 text-sm font-medium text-rose-600 dark:border-rose-800 dark:text-rose-300">
+                                      Remove
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             )) : (
@@ -522,9 +563,14 @@ function AppShell() {
                                     <p className="text-sm text-slate-500">Completed: {plan.completedAt ? formatCalendarDate(plan.completedAt) : "Not set"}</p>
                                     <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(plan.amount)}</p>
                                   </div>
-                                  <button type="button" onClick={() => updateDonationStatus.mutate({ id: plan._id, status: "pending" })} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
-                                    Move to pending
-                                  </button>
+                                  <div className="flex flex-wrap gap-2">
+                                    <button type="button" onClick={() => updateDonationStatus.mutate({ id: plan._id, status: "pending" })} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
+                                      Move to pending
+                                    </button>
+                                    <button type="button" onClick={() => deleteDonation.mutate(plan._id)} className="rounded-full border border-rose-300 px-4 py-2 text-sm font-medium text-rose-600 dark:border-rose-800 dark:text-rose-300">
+                                      Remove
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             )) : (
@@ -551,9 +597,9 @@ function AppShell() {
             </div>
             <form className="mt-4 space-y-3" onSubmit={(event) => { event.preventDefault(); addTransaction.mutate(transactionDraft); }}>
               <input value={transactionDraft.title} onChange={(event) => setTransactionDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Title" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
-              <input type="number" value={transactionDraft.amount} onChange={(event) => setTransactionDraft((current) => ({ ...current, amount: Number(event.target.value) }))} placeholder="Amount in BDT" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
+              <input type="number" value={transactionDraft.amount} onChange={(event) => setTransactionDraft((current) => ({ ...current, amount: event.target.value === "" ? "" : Number(event.target.value) }))} placeholder="Amount in BDT" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <input value={transactionDraft.category} onChange={(event) => setTransactionDraft((current) => ({ ...current, category: event.target.value }))} placeholder="Category" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
-              <input value={transactionDraft.section} onChange={(event) => setTransactionDraft((current) => ({ ...current, section: event.target.value.toLowerCase() || "self" }))} placeholder="Section like self or family" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
+              <input value={transactionDraft.section} onChange={(event) => setTransactionDraft((current) => ({ ...current, section: event.target.value.toLowerCase() || "family" }))} placeholder="Section like self or family" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <select value={transactionDraft.kind} onChange={(event) => setTransactionDraft((current) => ({ ...current, kind: event.target.value as TransactionKind }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80">
                 <option value="expense">Expense</option>
                 <option value="income">Income</option>
@@ -570,7 +616,14 @@ function AppShell() {
 }
 
 function RoutedApp() {
-  return <LoginGate><AppShell /></LoginGate>;
+  const [ready, setReady] = useState(false);
+  const [autoLogin, setAutoLogin] = useState(true);
+
+  return (
+    <LoginGate ready={ready} autoLogin={autoLogin} onAuthenticated={() => { setReady(true); setAutoLogin(false); }}>
+      <AppShell onLogout={() => { setReady(false); setAutoLogin(false); }} />
+    </LoginGate>
+  );
 }
 
 export default function App() {

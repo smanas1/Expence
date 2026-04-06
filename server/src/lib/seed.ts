@@ -1,5 +1,3 @@
-import bcrypt from "bcryptjs";
-
 import { BudgetModel } from "../models/Budget.js";
 import { DonationPlanModel } from "../models/DonationPlan.js";
 import { TransactionModel } from "../models/Transaction.js";
@@ -18,14 +16,18 @@ const seedTransactions: DashboardSeedTransaction[] = [
 export async function seedDemoUser() {
   const existing = await UserModel.findOne({ email: "demo@fintrack.app" });
   if (existing) {
+    if (!existing.password) {
+      existing.password = "demo1234";
+      await existing.save();
+    }
+
     return existing;
   }
 
-  const passwordHash = await bcrypt.hash("demo1234", 10);
   const user = await UserModel.create({
     email: "demo@fintrack.app",
     name: "Anas Rahman",
-    passwordHash,
+    password: "demo1234",
   });
 
   await TransactionModel.insertMany(

@@ -68,3 +68,18 @@ donationsRouter.patch("/:id/status", async (req: AuthedRequest, res) => {
 
   return res.json(normalizeDonationPlan(donation));
 });
+
+donationsRouter.delete("/:id", async (req: AuthedRequest, res) => {
+  const donationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+  const donation = await DonationPlanModel.findOneAndDelete({
+    _id: new mongoose.Types.ObjectId(donationId),
+    userId: new mongoose.Types.ObjectId(req.userId),
+  }).lean();
+
+  if (!donation) {
+    return res.status(404).json({ message: "Donation not found" });
+  }
+
+  return res.status(204).send();
+});

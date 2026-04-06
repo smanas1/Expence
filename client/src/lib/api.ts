@@ -28,6 +28,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
+  signup: (payload: { name: string; email: string; password: string }) =>
+    request<{ user: { name: string; email: string } }>("/api/auth/signup", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   logout: () => request<void>("/api/auth/logout", { method: "POST" }),
   summary: () => request<DashboardSummary>("/api/dashboard/summary"),
   transactions: (params: URLSearchParams) => request<Transaction[]>(`/api/transactions?${params.toString()}`),
@@ -51,6 +56,10 @@ export const api = {
     request<DonationPlan>("/api/donations", {
       method: "POST",
       body: JSON.stringify(payload),
+    }),
+  deleteDonation: (id: string) =>
+    request<void>(`/api/donations/${id}`, {
+      method: "DELETE",
     }),
   updateDonationStatus: (id: string, status: DonationPlan["status"]) =>
     request<DonationPlan>(`/api/donations/${id}/status`, {
