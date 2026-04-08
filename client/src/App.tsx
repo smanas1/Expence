@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowDownCircle, ArrowUpCircle, Bolt, CheckCircle2, Clock3, HeartHandshake, Landmark, LogOut, Moon, Search, Shield, SunMedium, Target, Users, Wallet } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Toaster, toast } from "sonner";
 
 import { CommandPalette } from "./components/command-palette";
@@ -163,6 +163,12 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
   const recentTransactions = summary?.recentTransactions ?? [];
   const totalTransactionPages = Math.max(1, Math.ceil(recentTransactions.length / transactionsPerPage));
   const paginatedTransactions = recentTransactions.slice((transactionPage - 1) * transactionsPerPage, transactionPage * transactionsPerPage);
+  const totalsChartData = [
+    { label: "Income", value: totals?.totalIncome ?? 0, fill: "#06b6d4" },
+    { label: "Expense", value: totals?.totalExpense ?? 0, fill: "#fb7185" },
+    { label: "Donation", value: totals?.totalDonation ?? 0, fill: "#f59e0b" },
+    { label: "Net", value: Math.max(netPosition, 0), fill: "#10b981" },
+  ];
 
   useEffect(() => {
     setTransactionPage((current) => Math.min(current, totalTransactionPages));
@@ -233,27 +239,25 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
           <GlassCard className="border-slate-200/80 bg-white/85 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">Monthly budgets</p>
-                <p className="text-sm text-slate-500">Quick progress by category.</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Balance breakdown</p>
+                <p className="text-sm text-slate-500">A compact comparison of the totals shaping your current position.</p>
               </div>
               <Wallet className="h-5 w-5 text-cyan-500" />
             </div>
-            <div className="mt-4 space-y-4">
-              {summary?.budgets?.map((budget) => {
-                const progress = Math.min(100, Math.round(((budget.spent ?? 0) / budget.limit) * 100));
-                return (
-                  <div key={`${budget.category}-${budget.month}`} className="rounded-3xl bg-slate-50/90 p-4 dark:bg-slate-950/60">
-                    <div className="mb-2 flex items-center justify-between text-sm">
-                      <span className="font-medium text-slate-700 dark:text-slate-200">{budget.category}</span>
-                      <span className="text-slate-500">{progress}%</span>
-                    </div>
-                    <div className="h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                      <div className={cn("h-full rounded-full", progress >= 80 ? "bg-rose-500" : "bg-cyan-500")} style={{ width: `${progress}%` }} />
-                    </div>
-                    <p className="mt-3 text-sm text-slate-500">{formatCurrency(budget.spent ?? 0)} spent of {formatCurrency(budget.limit)}</p>
-                  </div>
-                );
-              })}
+            <div className="mt-4 h-64 rounded-[28px] bg-slate-50/90 p-3 dark:bg-slate-950/60 sm:h-80 sm:p-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={totalsChartData} barCategoryGap="24%">
+                  <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.15} vertical={false} />
+                  <XAxis dataKey="label" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
+                  <Bar dataKey="value" radius={[14, 14, 0, 0]}>
+                    {totalsChartData.map((entry) => (
+                      <Cell key={entry.label} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </GlassCard>
         </div>
@@ -948,11 +952,10 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
 
       autoTable(doc, {
         startY: 52,
-        head: [["Date", "Title", "Category", "Section", "Type", "Amount"]],
+        head: [["Date", "Title", "Section", "Type", "Amount"]],
         body: rows.map((row) => [
           formatCalendarDate(row.occurredAt),
           row.title,
-          formatCategoryLabel(row.category),
           row.section,
           row.kind,
           formatCurrency(row.amount),

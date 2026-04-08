@@ -12,10 +12,6 @@ import { useMemo, useState } from "react";
 import { formatCalendarDate, formatCurrency, formatRecentDate } from "../lib/format";
 import type { Transaction, TransactionKind } from "../types";
 
-function formatCategoryLabel(category?: string) {
-  return category?.trim() ? category : "Uncategorized";
-}
-
 function transactionTone(kind: TransactionKind) {
   if (kind === "income") {
     return {
@@ -64,7 +60,6 @@ export function TransactionTable({ rows, loading, onDeleteSelected, onRemoveDona
       },
       { accessorKey: "title", header: "Title" },
       { accessorKey: "section", header: "Section" },
-      { accessorKey: "category", header: "Category", cell: ({ row }) => formatCategoryLabel(row.original.category) },
       { accessorKey: "amount", header: "Amount", cell: ({ row }) => <span className={transactionTone(row.original.kind).amount}>{formatCurrency(row.original.amount)}</span> },
       { accessorKey: "kind", header: "Type", cell: ({ row }) => <span className={`rounded-full px-2.5 py-1 text-xs font-medium uppercase tracking-[0.16em] ${transactionTone(row.original.kind).badge}`}>{row.original.kind}</span> },
       { accessorKey: "occurredAt", header: "When", cell: ({ row }) => <span title={formatRecentDate(row.original.occurredAt)}>{formatCalendarDate(row.original.occurredAt)}</span> },
@@ -103,8 +98,8 @@ export function TransactionTable({ rows, loading, onDeleteSelected, onRemoveDona
 
   const exportCsv = () => {
     const lines = [
-      ["Title", "Category", "Amount", "Type", "Occurred At"].join(","),
-      ...rows.map((row) => [row.title, formatCategoryLabel(row.category), row.amount, row.kind, row.occurredAt].join(",")),
+      ["Title", "Section", "Amount", "Type", "Occurred At"].join(","),
+      ...rows.map((row) => [row.title, row.section, row.amount, row.kind, row.occurredAt].join(",")),
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -120,7 +115,7 @@ export function TransactionTable({ rows, loading, onDeleteSelected, onRemoveDona
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-slate-900 dark:text-white">Monthly Cashflow Ledger</p>
-          <p className="text-sm text-slate-500">Track income and expenses by section, month, and category.</p>
+          <p className="text-sm text-slate-500">Track income and expenses by section and date.</p>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <button type="button" onClick={exportCsv} className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm dark:border-slate-700 sm:w-auto">
@@ -162,10 +157,6 @@ export function TransactionTable({ rows, loading, onDeleteSelected, onRemoveDona
                     <p className="mt-1 text-slate-700 dark:text-slate-200">{row.original.section}</p>
                   </div>
                   <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Category</p>
-                    <p className="mt-1 text-slate-700 dark:text-slate-200">{formatCategoryLabel(row.original.category)}</p>
-                  </div>
-                  <div>
                     <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Type</p>
                     <p className={`mt-1 inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-medium uppercase tracking-[0.16em] ${transactionTone(row.original.kind).badge}`}>{row.original.kind}</p>
                   </div>
@@ -204,7 +195,7 @@ export function TransactionTable({ rows, loading, onDeleteSelected, onRemoveDona
             {loading
               ? Array.from({ length: 6 }).map((_, index) => (
                   <tr key={index}>
-                    <td colSpan={8} className="h-14 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+                    <td colSpan={7} className="h-14 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
                   </tr>
                 ))
               : table.getRowModel().rows.map((row) => (
