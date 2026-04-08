@@ -3,19 +3,52 @@ import { Router } from "express";
 import { BudgetModel } from "../models/Budget.js";
 import { DonationPlanModel, normalizeDonationPlan } from "../models/DonationPlan.js";
 import { TransactionModel } from "../models/Transaction.js";
-import { UserTotalsModel } from "../models/UserTotals.js";
 export const dashboardRouter = Router();
 dashboardRouter.get("/summary", async (req, res) => {
     const userId = new mongoose.Types.ObjectId(req.userId);
     const month = new Date().toISOString().slice(0, 7);
+    const windowStart = new Date();
+    windowStart.setHours(0, 0, 0, 0);
+    windowStart.setDate(windowStart.getDate() - 29);
     const [totals, chart, budgets, recentTransactions, plans] = await Promise.all([
-        UserTotalsModel.findOne({ userId }).lean(),
         TransactionModel.aggregate([
-            { $match: { userId } },
+            { $match: { userId, occurredAt: { $gte: windowStart } } },
+            {
+                $group: {
+                    _id: null,
+                    totalIncome: {
+                        $sum: {
+                            $cond: [{ $eq: ["$kind", "income"] }, "$amount", 0],
+                        },
+                    },
+                    totalExpense: {
+                        $sum: {
+                            $cond: [{ $eq: ["$kind", "expense"] }, "$amount", 0],
+                        },
+                    },
+                    totalDonation: {
+                        $sum: {
+                            $cond: [{ $eq: ["$kind", "donation"] }, "$amount", 0],
+                        },
+                    },
+                },
+            },
+            {
+                $project: {
+                    _id: 0,
+                    totalIncome: 1,
+                    totalExpense: 1,
+                    totalDonation: 1,
+                    totalSavings: { $subtract: ["$totalIncome", { $add: ["$totalExpense", "$totalDonation"] }] },
+                },
+            },
+        ]).then((rows) => rows[0] ?? { totalIncome: 0, totalExpense: 0, totalDonation: 0, totalSavings: 0 }),
+        TransactionModel.aggregate([
+            { $match: { userId, occurredAt: { $gte: windowStart } } },
             {
                 $group: {
                     _id: {
-                        month: { $dateToString: { format: "%Y-%m", date: "$occurredAt" } },
+                        month: { $dateToString: { format: "%m-%d", date: "$occurredAt" } },
                         kind: "$kind",
                     },
                     total: { $sum: "$amount" },
@@ -37,6 +70,7 @@ dashboardRouter.get("/summary", async (req, res) => {
                                         { $eq: ["$category", "$$category"] },
                                         { $eq: ["$userId", "$$userId"] },
                                         { $eq: ["$kind", "expense"] },
+                                        { $gte: ["$occurredAt", windowStart] },
                                         {
                                             $eq: [
                                                 { $dateToString: { format: "%Y-%m", date: "$occurredAt" } },
@@ -61,8 +95,14 @@ dashboardRouter.get("/summary", async (req, res) => {
                 },
             },
         ]),
-        TransactionModel.find({ userId }).sort({ occurredAt: -1 }).lean(),
-        DonationPlanModel.find({ userId }).lean(),
+        TransactionModel.find({ userId, occurredAt: { $gte: windowStart } }).sort({ occurredAt: -1 }).lean(),
+        DonationPlanModel.find({
+            userId,
+            $or: [
+                { initiatedAt: { $gte: windowStart } },
+                { completedAt: { $gte: windowStart } },
+            ],
+        }).lean(),
     ]);
     const healthScore = Math.max(0, Math.min(100, Math.round(((totals?.totalSavings ?? 0) / Math.max((totals?.totalExpense ?? 0) + (totals?.totalDonation ?? 0), 1)) * 65 +
         (budgets.length

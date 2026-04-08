@@ -166,7 +166,6 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
   const totalsChartData = [
     { label: "Income", value: totals?.totalIncome ?? 0, fill: "#06b6d4" },
     { label: "Expense", value: totals?.totalExpense ?? 0, fill: "#fb7185" },
-    { label: "Donation", value: totals?.totalDonation ?? 0, fill: "#f59e0b" },
     { label: "Net", value: Math.max(netPosition, 0), fill: "#10b981" },
   ];
 
@@ -178,9 +177,10 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "Income", value: totals?.totalIncome ?? 0, icon: Landmark, tone: "text-emerald-500", surface: "bg-emerald-500/10", note: "All inflows tracked" },
-          { label: "Expenses", value: totals?.totalExpense ?? 0, icon: Wallet, tone: "text-rose-500", surface: "bg-rose-500/10", note: "Outgoings across sections" },
-          { label: "Savings", value: totals?.totalSavings ?? 0, icon: Bolt, tone: "text-amber-500", surface: "bg-amber-500/10", note: netPosition >= 0 ? "Positive direction" : "Needs attention" },
+          { label: "Income", value: totals?.totalIncome ?? 0, icon: Landmark, tone: "text-emerald-500", surface: "bg-emerald-500/10", note: "Last 30 days" },
+          { label: "Expenses", value: totals?.totalExpense ?? 0, icon: Wallet, tone: "text-rose-500", surface: "bg-rose-500/10", note: "Last 30 days" },
+          { label: "Savings", value: totals?.totalSavings ?? 0, icon: Bolt, tone: "text-amber-500", surface: "bg-amber-500/10", note: netPosition >= 0 ? "Last 30 days trend" : "Needs attention" },
+          { label: "Transactions", value: recentTransactions.length, icon: Clock3, tone: "text-cyan-500", surface: "bg-cyan-500/10", note: "Logged in last 30 days" },
         ].map((item) => (
           <motion.div key={item.label} layout>
             <GlassCard className="border-slate-200/80 bg-white/80 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
@@ -204,7 +204,7 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
           <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-900 dark:text-white">Cashflow rhythm</p>
-              <p className="text-sm text-slate-500">A clear comparison between income and expenses across the recent timeline.</p>
+              <p className="text-sm text-slate-500">A clear comparison between income and expenses across the last 30 days.</p>
             </div>
             <div className="flex flex-wrap gap-2 text-xs">
               <span className="rounded-full bg-cyan-500/10 px-3 py-2 font-medium text-cyan-700 dark:text-cyan-300">Income</span>
@@ -240,7 +240,7 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold text-slate-900 dark:text-white">Balance breakdown</p>
-                <p className="text-sm text-slate-500">A compact comparison of the totals shaping your current position.</p>
+                <p className="text-sm text-slate-500">A compact comparison of your last 30 day totals.</p>
               </div>
               <Wallet className="h-5 w-5 text-cyan-500" />
             </div>
@@ -267,7 +267,7 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold text-slate-900 dark:text-white">Recent activity</p>
-            <p className="text-sm text-slate-500">Latest transactions across your workspace.</p>
+            <p className="text-sm text-slate-500">Transactions from the last 30 days.</p>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
