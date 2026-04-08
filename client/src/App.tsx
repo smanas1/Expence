@@ -320,6 +320,16 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
   );
 }
 
+function sortDonationPlans(items: DonationPlan[]) {
+  return [...items].sort((left, right) => {
+    if (left.status !== right.status) {
+      return left.status === "pending" ? -1 : 1;
+    }
+
+    return new Date(right.initiatedAt).getTime() - new Date(left.initiatedAt).getTime();
+  });
+}
+
 function AdminView({
   users,
   userDrafts,
@@ -558,7 +568,7 @@ function DebtView({
           <p className="text-sm uppercase tracking-[0.24em] text-cyan-600">Debt management</p>
           <h3 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">Simple friend lending tracker</h3>
           <p className="mt-2 max-w-3xl text-sm text-slate-500">
-            Keep a simple record of who you lent money to, when you gave it, and when they should return it.
+            Keep a simple record of each lending entry, when you gave it, and when it should return.
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -606,9 +616,9 @@ function DebtView({
             }}
           >
             <p className="text-sm font-semibold text-slate-900 dark:text-white">Add loan entry</p>
-            <p className="mt-1 text-sm text-slate-500">Just save the friend name, amount, given date, and expected return date.</p>
+            <p className="mt-1 text-sm text-slate-500">Just save a title, amount, given date, and expected return date.</p>
             <div className="mt-4 space-y-3">
-              <input value={draft.friendName} onChange={(event) => onDraftChange("friendName", event.target.value)} placeholder="Friend name" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
+              <input value={draft.friendName} onChange={(event) => onDraftChange("friendName", event.target.value)} placeholder="Title" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <input type="number" min="0" value={draft.amount} onChange={(event) => onDraftChange("amount", event.target.value === "" ? "" : Number(event.target.value))} placeholder="Amount" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
@@ -631,7 +641,7 @@ function DebtView({
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-sm font-semibold text-slate-900 dark:text-white">Open lending list</p>
-                <p className="text-sm text-slate-500">See who still needs to return money and when they said they would.</p>
+                <p className="text-sm text-slate-500">See which entries are still open and when they are expected back.</p>
               </div>
               <div className="rounded-2xl bg-slate-50/90 px-4 py-3 text-sm text-slate-600 dark:bg-slate-950/70 dark:text-slate-300">
                 {nextReturn ? `${nextReturn.friendName} is due on ${formatCalendarDate(nextReturn.endDate)}.` : "Add a loan to start tracking."}
@@ -805,10 +815,40 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
 
   const addDonation = useMutation({
     mutationFn: (payload: DonationDraft) => api.addDonation({ ...payload, amount: Number(payload.amount) }),
-    onSuccess: () => {
+    onMutate: async (payload) => {
+      await queryClientLocal.cancelQueries({ queryKey: ["donations"] });
+      const previous = queryClientLocal.getQueryData<{ donations: DonationPlan[] }>(["donations"]);
+      const optimisticDonation: DonationPlan = {
+        _id: `temp-${crypto.randomUUID()}`,
+        title: payload.title,
+        amount: Number(payload.amount),
+        status: payload.status,
+        initiatedAt: payload.initiatedAt,
+        completedAt: payload.status === "completed" ? payload.completedAt ?? payload.initiatedAt : null,
+      };
+
+      queryClientLocal.setQueryData<{ donations: DonationPlan[] }>(["donations"], {
+        donations: sortDonationPlans([optimisticDonation, ...(previous?.donations ?? [])]),
+      });
+
+      return { previous, optimisticId: optimisticDonation._id };
+    },
+    onSuccess: (createdDonation, _payload, context) => {
+      queryClientLocal.setQueryData<{ donations: DonationPlan[] }>(["donations"], (current) => ({
+        donations: sortDonationPlans([
+          createdDonation,
+          ...(current?.donations ?? []).filter((item) => item._id !== context?.optimisticId && item._id !== createdDonation._id),
+        ]),
+      }));
       toast.success("Donation tracked successfully.");
       setDonationDraft({ title: "", amount: "", status: "pending", initiatedAt: new Date().toISOString(), completedAt: null });
       invalidate();
+    },
+    onError: (error: Error, _payload, context) => {
+      if (context?.previous) {
+        queryClientLocal.setQueryData(["donations"], context.previous);
+      }
+      toast.error(error.message);
     },
   });
   const addDebtMutation = useMutation({
@@ -852,14 +892,21 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
   });
   const updateDonationStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: "pending" | "completed" }) => api.updateDonationStatus(id, status),
-    onSuccess: (_, variables) => {
+    onSuccess: (updatedDonation, variables) => {
+      queryClientLocal.setQueryData<{ donations: DonationPlan[] }>(["donations"], (current) => ({
+        donations: sortDonationPlans((current?.donations ?? []).map((item) => (item._id === updatedDonation._id ? updatedDonation : item))),
+      }));
       toast.success(variables.status === "completed" ? "Donation marked as completed." : "Donation moved back to pending.");
       invalidate();
     },
+    onError: (error: Error) => toast.error(error.message),
   });
   const deleteDonation = useMutation({
     mutationFn: api.deleteDonation,
-    onSuccess: () => {
+    onSuccess: (_, deletedId) => {
+      queryClientLocal.setQueryData<{ donations: DonationPlan[] }>(["donations"], (current) => ({
+        donations: (current?.donations ?? []).filter((item) => item._id !== deletedId),
+      }));
       setDonationToRemove(null);
       toast.success("Donation removed.");
       invalidate();
@@ -1151,7 +1198,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
   };
   const addDebt = () => {
     if (!debtDraft.friendName.trim()) {
-      toast.error("Add your friend's name.");
+      toast.error("Add a title.");
       return;
     }
 

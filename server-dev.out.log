@@ -9,3 +9,10 @@ API listening on http://localhost:4000
 c◇ injecting env (4) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
 Connected to MongoDB at mongodb://project:project121@ac-e9vlsip-shard-00-00.kkyyjrl.mongodb.net:27017,ac-e9vlsip-shard-00-01.kkyyjrl.mongodb.net:27017,ac-e9vlsip-shard-00-02.kkyyjrl.mongodb.net:27017/expence?ssl=true&authSource=admin&replicaSet=atlas-ju5tzr-shard-0&retryWrites=true&w=majority&appName=Cluster0
 API listening on http://localhost:4000
+11:54:53 PM [tsx] change in ./src\routes\dashboard.ts Restarting...
+c◇ injecting env (4) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+Connected to MongoDB at mongodb://project:project121@ac-e9vlsip-shard-00-00.kkyyjrl.mongodb.net:27017,ac-e9vlsip-shard-00-01.kkyyjrl.mongodb.net:27017,ac-e9vlsip-shard-00-02.kkyyjrl.mongodb.net:27017/expence?ssl=true&authSource=admin&replicaSet=atlas-ju5tzr-shard-0&retryWrites=true&w=majority&appName=Cluster0
+11:54:58 PM [tsx] change in ./src\routes\dashboard.ts Restarting...
+c◇ injecting env (4) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+Connected to MongoDB at mongodb://project:project121@ac-e9vlsip-shard-00-00.kkyyjrl.mongodb.net:27017,ac-e9vlsip-shard-00-01.kkyyjrl.mongodb.net:27017,ac-e9vlsip-shard-00-02.kkyyjrl.mongodb.net:27017/expence?ssl=true&authSource=admin&replicaSet=atlas-ju5tzr-shard-0&retryWrites=true&w=majority&appName=Cluster0
+API listening on http://localhost:4000
