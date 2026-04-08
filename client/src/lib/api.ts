@@ -1,4 +1,4 @@
-import type { AdminDonation, AdminTransaction, AdminUser, AuthUser, BudgetItem, DashboardSummary, DonationPlan, Transaction } from "../types";
+import type { AdminDonation, AdminTransaction, AdminUser, AuthUser, BudgetItem, DashboardSummary, DebtItem, DonationPlan, Transaction } from "../types";
 
 async function request<T>(input: string, init?: RequestInit) {
   const response = await fetch(input, {
@@ -23,6 +23,7 @@ async function request<T>(input: string, init?: RequestInit) {
 }
 
 export const api = {
+  me: () => request<{ user: AuthUser }>("/api/auth/me"),
   login: (email: string, password: string) =>
     request<{ user: AuthUser }>("/api/auth/login", {
       method: "POST",
@@ -50,6 +51,21 @@ export const api = {
     request<BudgetItem>("/api/budgets", {
       method: "POST",
       body: JSON.stringify(payload),
+    }),
+  debts: () => request<{ debts: DebtItem[] }>("/api/debts"),
+  addDebt: (payload: Omit<DebtItem, "_id" | "status" | "createdAt" | "settledAt">) =>
+    request<DebtItem>("/api/debts", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateDebtStatus: (id: string, status: "active" | "paid") =>
+    request<DebtItem>(`/api/debts/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+  deleteDebt: (id: string) =>
+    request<void>(`/api/debts/${id}`, {
+      method: "DELETE",
     }),
   donations: () => request<{ donations: DonationPlan[] }>("/api/donations"),
   addDonation: (payload: Omit<DonationPlan, "_id">) =>

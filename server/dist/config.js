@@ -7,4 +7,5 @@ export const config = {
     jwtSecret: process.env.JWT_SECRET ?? "development-secret",
     cookieName: "fintrack_token",
     isProduction: process.env.NODE_ENV === "production",
+    useMemoryMongoFallback: process.env.USE_MEMORY_MONGO_FALLBACK !== "false",
 };

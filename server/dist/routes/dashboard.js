@@ -61,7 +61,7 @@ dashboardRouter.get("/summary", async (req, res) => {
                 },
             },
         ]),
-        TransactionModel.find({ userId }).sort({ occurredAt: -1 }).limit(8).lean(),
+        TransactionModel.find({ userId }).sort({ occurredAt: -1 }).lean(),
         DonationPlanModel.find({ userId }).lean(),
     ]);
     const healthScore = Math.max(0, Math.min(100, Math.round(((totals?.totalSavings ?? 0) / Math.max((totals?.totalExpense ?? 0) + (totals?.totalDonation ?? 0), 1)) * 65 +

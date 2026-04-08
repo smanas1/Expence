@@ -2,6 +2,7 @@ import { Router, type Response } from "express";
 
 import { config } from "../config.js";
 import { signJwt } from "../lib/auth.js";
+import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { UserModel } from "../models/User.js";
 
 export const authRouter = Router();
@@ -67,4 +68,17 @@ authRouter.post("/signup", async (req, res) => {
 authRouter.post("/logout", (_req, res) => {
   res.clearCookie(config.cookieName);
   res.status(204).send();
+});
+
+authRouter.get("/me", requireAuth, async (req: AuthedRequest, res) => {
+  const user = await UserModel.findById(req.userId).lean();
+
+  if (!user) {
+    res.status(401).json({ message: "Account not found." });
+    return;
+  }
+
+  res.json({
+    user: { id: user._id, name: user.name, email: user.email, currency: user.currency, role: user.role },
+  });
 });

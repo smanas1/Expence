@@ -40,6 +40,18 @@ export interface DonationPlan {
   completedAt?: string | null;
 }
 
+export interface DebtItem {
+  _id: string;
+  friendName: string;
+  amount: number;
+  givenDate: string;
+  endDate: string;
+  notes: string;
+  status: "active" | "paid";
+  createdAt: string;
+  settledAt?: string | null;
+}
+
 export interface AdminDonation extends DonationPlan {
   user: { id: string; name: string; email: string } | null;
 }

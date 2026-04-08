@@ -66,7 +66,7 @@ dashboardRouter.get("/summary", async (req: AuthedRequest, res) => {
         },
       },
     ]),
-    TransactionModel.find({ userId }).sort({ occurredAt: -1 }).limit(8).lean(),
+    TransactionModel.find({ userId }).sort({ occurredAt: -1 }).lean(),
     DonationPlanModel.find({ userId }).lean(),
   ]);
 

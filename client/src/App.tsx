@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowDownCircle, ArrowUpCircle, Bolt, CheckCircle2, Clock3, HeartHandshake, Landmark, LogOut, Moon, Search, Shield, SunMedium, Users, Wallet } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Bolt, CheckCircle2, Clock3, HeartHandshake, Landmark, LogOut, Moon, Search, Shield, SunMedium, Target, Users, Wallet } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -11,13 +11,21 @@ import { TransactionTable } from "./components/transaction-table";
 import { api } from "./lib/api";
 import { formatCalendarDate, formatCurrency, formatRecentDate } from "./lib/format";
 import { cn } from "./lib/utils";
-import type { AdminDonation, AdminTransaction, AdminUser, AuthUser, DashboardSummary, DonationPlan, Transaction, TransactionKind } from "./types";
+import type { AdminDonation, AdminTransaction, AdminUser, AuthUser, DashboardSummary, DebtItem, DonationPlan, Transaction, TransactionKind } from "./types";
 
 const queryClient = new QueryClient();
 type DonationDraft = { title: string; amount: number | ""; status: "pending" | "completed"; initiatedAt: string; completedAt: string | null };
 type TransactionDraft = Omit<Transaction, "_id" | "amount"> & { amount: number | "" };
 type PdfExportDraft = { startDate: string; endDate: string; section: string };
 type AdminUserDraft = { name: string; email: string; currency: string; role: "user" | "admin"; password: string };
+type DebtStatus = "active" | "paid";
+type DebtDraft = {
+  friendName: string;
+  amount: number | "";
+  givenDate: string;
+  endDate: string;
+  notes: string;
+};
 
 function formatCategoryLabel(category?: string) {
   return category?.trim() ? category : "Uncategorized";
@@ -75,7 +83,7 @@ function GlassCard({ children, className = "" }: { children: ReactNode; classNam
   );
 }
 
-function LoginGate({ children, ready, onAuthenticated, autoLogin = false }: { children: ReactNode; ready: boolean; onAuthenticated: (user: AuthUser) => void; autoLogin?: boolean }) {
+function LoginGate({ children, ready, checkingSession, onAuthenticated }: { children: ReactNode; ready: boolean; checkingSession?: boolean; onAuthenticated: (user: AuthUser) => void }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [credentials, setCredentials] = useState({ name: "Anas Rahman", email: "demo@fintrack.app", password: "demo1234" });
   const authMutation = useMutation({
@@ -89,15 +97,20 @@ function LoginGate({ children, ready, onAuthenticated, autoLogin = false }: { ch
     },
     onError: (error: Error) => toast.error(error.message),
   });
-  const { mutate: triggerAuth, isPending } = authMutation;
-
-  useEffect(() => {
-    if (autoLogin) {
-      triggerAuth();
-    }
-  }, [autoLogin, triggerAuth]);
+  const { isPending } = authMutation;
 
   if (ready) return <>{children}</>;
+
+  if (checkingSession) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.22),_transparent_35%),linear-gradient(135deg,#f8fafc,#dbeafe_45%,#f8fafc)] px-4 dark:bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.15),_transparent_35%),linear-gradient(135deg,#020617,#0f172a_45%,#020617)]">
+        <div className="rounded-[32px] border border-white/40 bg-white/70 px-8 py-6 text-center shadow-2xl shadow-cyan-950/10 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/75">
+          <p className="text-sm uppercase tracking-[0.32em] text-cyan-600">FinTrack</p>
+          <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Restoring your session...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.22),_transparent_35%),linear-gradient(135deg,#f8fafc,#dbeafe_45%,#f8fafc)] px-4 dark:bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.15),_transparent_35%),linear-gradient(135deg,#020617,#0f172a_45%,#020617)]">
@@ -133,6 +146,8 @@ function LoginGate({ children, ready, onAuthenticated, autoLogin = false }: { ch
 }
 
 function DashboardView({ summary }: { summary?: DashboardSummary }) {
+  const transactionsPerPage = 5;
+  const [transactionPage, setTransactionPage] = useState(1);
   const chartData = useMemo(() => {
     const base = new Map<string, { month: string; income: number; expense: number; donation: number }>();
     summary?.chart.forEach((item) => {
@@ -145,6 +160,13 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
 
   const totals = summary?.totals;
   const netPosition = (totals?.totalIncome ?? 0) - (totals?.totalExpense ?? 0) - (totals?.totalDonation ?? 0);
+  const recentTransactions = summary?.recentTransactions ?? [];
+  const totalTransactionPages = Math.max(1, Math.ceil(recentTransactions.length / transactionsPerPage));
+  const paginatedTransactions = recentTransactions.slice((transactionPage - 1) * transactionsPerPage, transactionPage * transactionsPerPage);
+
+  useEffect(() => {
+    setTransactionPage((current) => Math.min(current, totalTransactionPages));
+  }, [totalTransactionPages]);
 
   return (
     <div className="space-y-6">
@@ -243,10 +265,15 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
             <p className="text-sm font-semibold text-slate-900 dark:text-white">Recent activity</p>
             <p className="text-sm text-slate-500">Latest transactions across your workspace.</p>
           </div>
-          <Clock3 className="h-5 w-5 text-cyan-500" />
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
+              Page {totalTransactionPages ? transactionPage : 0} of {totalTransactionPages}
+            </span>
+            <Clock3 className="h-5 w-5 text-cyan-500" />
+          </div>
         </div>
         <div className="mt-4 space-y-3">
-          {summary?.recentTransactions.map((item) => (
+          {paginatedTransactions.map((item) => (
             <motion.div layout key={item._id} className="flex items-center justify-between rounded-3xl bg-slate-50/90 px-4 py-4 dark:bg-slate-950/60">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -259,6 +286,31 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
             </motion.div>
           ))}
         </div>
+        {recentTransactions.length > transactionsPerPage ? (
+          <div className="mt-5 flex flex-col gap-3 border-t border-slate-200/80 pt-4 dark:border-slate-800">
+            <p className="text-sm text-slate-500">
+              Showing {(transactionPage - 1) * transactionsPerPage + 1}-{Math.min(transactionPage * transactionsPerPage, recentTransactions.length)} of {recentTransactions.length} transactions
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setTransactionPage((current) => Math.max(1, current - 1))}
+                disabled={transactionPage === 1}
+                className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                onClick={() => setTransactionPage((current) => Math.min(totalTransactionPages, current + 1))}
+                disabled={transactionPage === totalTransactionPages}
+                className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40 dark:bg-cyan-400 dark:text-slate-950"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        ) : null}
       </GlassCard>
     </div>
   );
@@ -472,6 +524,188 @@ function AdminView({
   );
 }
 
+function DebtView({
+  debts,
+  draft,
+  onDraftChange,
+  onAddDebt,
+  onToggleStatus,
+  onDeleteDebt,
+}: {
+  debts: DebtItem[];
+  draft: DebtDraft;
+  onDraftChange: (field: keyof DebtDraft, value: string | number | "") => void;
+  onAddDebt: () => void;
+  onToggleStatus: (id: string) => void;
+  onDeleteDebt: (id: string) => void;
+}) {
+  const activeDebts = debts.filter((item) => item.status === "active");
+  const paidDebts = debts.filter((item) => item.status === "paid");
+  const totalLent = activeDebts.reduce((sum, item) => sum + item.amount, 0);
+  const totalRecovered = paidDebts.reduce((sum, item) => sum + item.amount, 0);
+  const nextReturn = activeDebts.length
+    ? [...activeDebts].sort((left, right) => new Date(left.endDate).getTime() - new Date(right.endDate).getTime())[0]
+    : null;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-sm uppercase tracking-[0.24em] text-cyan-600">Debt management</p>
+          <h3 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">Simple friend lending tracker</h3>
+          <p className="mt-2 max-w-3xl text-sm text-slate-500">
+            Keep a simple record of who you lent money to, when you gave it, and when they should return it.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-3xl border border-slate-200/70 bg-white/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/70">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Open loans</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{activeDebts.length}</p>
+          </div>
+          <div className="rounded-3xl border border-rose-200/70 bg-rose-50/70 px-4 py-3 dark:border-rose-900/30 dark:bg-rose-950/20">
+            <p className="text-xs uppercase tracking-[0.2em] text-rose-700 dark:text-rose-300">Still out</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{formatCurrency(totalLent)}</p>
+          </div>
+          <div className="rounded-3xl border border-emerald-200/70 bg-emerald-50/70 px-4 py-3 dark:border-emerald-900/30 dark:bg-emerald-950/20">
+            <p className="text-xs uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">Recovered</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{formatCurrency(totalRecovered)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {[
+          { label: "Total records", value: debts.length, icon: Wallet, tone: "text-amber-500", surface: "bg-amber-500/10" },
+          { label: "Settled loans", value: paidDebts.length, icon: CheckCircle2, tone: "text-emerald-500", surface: "bg-emerald-500/10" },
+          { label: "Next return", value: nextReturn ? `${nextReturn.friendName} · ${formatCalendarDate(nextReturn.endDate)}` : "No upcoming date", icon: Clock3, tone: "text-rose-500", surface: "bg-rose-500/10" },
+        ].map((item) => (
+          <GlassCard key={item.label} className="border-slate-200/70 bg-white/80 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-500">{item.label}</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white sm:text-3xl">{item.value}</p>
+              </div>
+              <div className={cn("rounded-2xl p-3", item.surface)}>
+                <item.icon className={cn("h-5 w-5", item.tone)} />
+              </div>
+            </div>
+          </GlassCard>
+        ))}
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
+        <GlassCard className="h-fit border-slate-200/70 bg-white/80 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70 xl:sticky xl:top-6">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              onAddDebt();
+            }}
+          >
+            <p className="text-sm font-semibold text-slate-900 dark:text-white">Add loan entry</p>
+            <p className="mt-1 text-sm text-slate-500">Just save the friend name, amount, given date, and expected return date.</p>
+            <div className="mt-4 space-y-3">
+              <input value={draft.friendName} onChange={(event) => onDraftChange("friendName", event.target.value)} placeholder="Friend name" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
+              <input type="number" min="0" value={draft.amount} onChange={(event) => onDraftChange("amount", event.target.value === "" ? "" : Number(event.target.value))} placeholder="Amount" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm text-slate-500">Giving date</label>
+                  <input type="date" value={draft.givenDate} onChange={(event) => onDraftChange("givenDate", event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm text-slate-500">End date</label>
+                  <input type="date" value={draft.endDate} onChange={(event) => onDraftChange("endDate", event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
+                </div>
+              </div>
+              <textarea value={draft.notes} onChange={(event) => onDraftChange("notes", event.target.value)} placeholder="Optional note" rows={3} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 outline-none dark:border-slate-700 dark:bg-slate-950/80" />
+            </div>
+            <button className="mt-4 w-full rounded-2xl bg-slate-950 px-4 py-3 text-white dark:bg-cyan-400 dark:text-slate-950">Save debt</button>
+          </form>
+        </GlassCard>
+
+        <div className="space-y-6">
+          <GlassCard className="border-slate-200/70 bg-white/80 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Open lending list</p>
+                <p className="text-sm text-slate-500">See who still needs to return money and when they said they would.</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50/90 px-4 py-3 text-sm text-slate-600 dark:bg-slate-950/70 dark:text-slate-300">
+                {nextReturn ? `${nextReturn.friendName} is due on ${formatCalendarDate(nextReturn.endDate)}.` : "Add a loan to start tracking."}
+              </div>
+            </div>
+            <div className="mt-4 space-y-3">
+              {activeDebts.length ? activeDebts.map((item) => (
+                <div key={item._id} className="rounded-3xl border border-slate-200/80 bg-slate-50/90 p-4 dark:border-slate-800 dark:bg-slate-950/70">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="font-semibold text-slate-900 dark:text-white">{item.friendName}</p>
+                      <p className="mt-1 text-sm text-slate-500">Given {formatCalendarDate(item.givenDate)} · return by {formatCalendarDate(item.endDate)}</p>
+                      {item.notes ? <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">{item.notes}</p> : null}
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[280px]">
+                      <div className="rounded-2xl bg-white/80 p-3 dark:bg-slate-900/80">
+                        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Amount</p>
+                        <p className="mt-2 font-semibold text-slate-900 dark:text-white">{formatCurrency(item.amount)}</p>
+                      </div>
+                      <div className="rounded-2xl bg-white/80 p-3 dark:bg-slate-900/80">
+                        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Status</p>
+                        <p className="mt-2 font-semibold text-slate-900 dark:text-white">Waiting</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => onToggleStatus(item._id)} className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white dark:bg-cyan-400 dark:text-slate-950">
+                      Mark returned
+                    </button>
+                    <button type="button" onClick={() => onDeleteDebt(item._id)} className="rounded-full border border-rose-300 px-4 py-2 text-sm font-medium text-rose-600 dark:border-rose-800 dark:text-rose-300">
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              )) : (
+                <div className="rounded-3xl border border-dashed border-slate-300 p-6 text-sm text-slate-500 dark:border-slate-700">No active debts yet. Add one from the form to start your payoff plan.</div>
+              )}
+            </div>
+          </GlassCard>
+
+          <GlassCard className="border-slate-200/70 bg-white/80 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Returned</p>
+                <p className="text-sm text-slate-500">Loans that have already been paid back.</p>
+              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">{paidDebts.length}</span>
+            </div>
+            <div className="mt-4 space-y-3">
+              {paidDebts.length ? paidDebts.map((item) => (
+                <div key={item._id} className="flex flex-col gap-3 rounded-3xl border border-slate-200/80 bg-slate-50/90 p-4 dark:border-slate-800 dark:bg-slate-950/70 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                      <p className="font-medium text-slate-900 dark:text-white">{item.friendName}</p>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-500">{formatCurrency(item.amount)} · returned {item.settledAt ? formatCalendarDate(item.settledAt) : "recently"}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => onToggleStatus(item._id)} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
+                      Move back to open
+                    </button>
+                    <button type="button" onClick={() => onDeleteDebt(item._id)} className="rounded-full border border-rose-300 px-4 py-2 text-sm font-medium text-rose-600 dark:border-rose-800 dark:text-rose-300">
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              )) : (
+                <div className="rounded-3xl border border-dashed border-slate-300 p-6 text-sm text-slate-500 dark:border-slate-700">Paid accounts will appear here.</div>
+              )}
+            </div>
+          </GlassCard>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | null }) {
   const queryClientLocal = useQueryClient();
   const { theme, toggle } = useThemeMode();
@@ -484,17 +718,26 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
   const [quickExpenseOpen, setQuickExpenseOpen] = useState(false);
   const [pdfExportOpen, setPdfExportOpen] = useState(false);
   const [donationToRemove, setDonationToRemove] = useState<DonationPlan | null>(null);
+  const [debtToRemove, setDebtToRemove] = useState<DebtItem | null>(null);
   const [adminUserDrafts, setAdminUserDrafts] = useState<Record<string, AdminUserDraft>>({});
   const [pdfExportDraft, setPdfExportDraft] = useState<PdfExportDraft>({
     startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10),
     endDate: new Date().toISOString().slice(0, 10),
     section: "all",
   });
+  const [debtDraft, setDebtDraft] = useState<DebtDraft>({
+    friendName: "",
+    amount: "",
+    givenDate: new Date().toISOString().slice(0, 10),
+    endDate: new Date().toISOString().slice(0, 10),
+    notes: "",
+  });
   const [transactionDraft, setTransactionDraft] = useState<TransactionDraft>({ title: "", amount: "", category: "", section: "family", kind: "expense", occurredAt: new Date().toISOString() });
   const [donationDraft, setDonationDraft] = useState<DonationDraft>({ title: "", amount: "", status: "pending", initiatedAt: "2026-04-06T00:00:00.000Z", completedAt: null });
 
   const summary = useQuery({ queryKey: ["summary"], queryFn: api.summary });
   const transactions = useQuery({ queryKey: ["transactions", filters], queryFn: () => api.transactions(new URLSearchParams(filters)) });
+  const debts = useQuery({ queryKey: ["debts"], queryFn: api.debts });
   const donations = useQuery({ queryKey: ["donations"], queryFn: api.donations });
   const adminUsers = useQuery({
     queryKey: ["admin-users"],
@@ -536,6 +779,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
   const invalidate = () => {
     queryClientLocal.invalidateQueries({ queryKey: ["summary"] });
     queryClientLocal.invalidateQueries({ queryKey: ["transactions"] });
+    queryClientLocal.invalidateQueries({ queryKey: ["debts"] });
     queryClientLocal.invalidateQueries({ queryKey: ["donations"] });
   };
   const invalidateAdmin = () => {
@@ -562,6 +806,45 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
       setDonationDraft({ title: "", amount: "", status: "pending", initiatedAt: new Date().toISOString(), completedAt: null });
       invalidate();
     },
+  });
+  const addDebtMutation = useMutation({
+    mutationFn: (payload: DebtDraft) =>
+      api.addDebt({
+        friendName: payload.friendName.trim(),
+        amount: Number(payload.amount),
+        givenDate: new Date(payload.givenDate).toISOString(),
+        endDate: new Date(payload.endDate).toISOString(),
+        notes: payload.notes.trim(),
+      }),
+    onSuccess: () => {
+      setDebtDraft({
+        friendName: "",
+        amount: "",
+        givenDate: new Date().toISOString().slice(0, 10),
+        endDate: new Date().toISOString().slice(0, 10),
+        notes: "",
+      });
+      toast.success("Loan entry added.");
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const updateDebtStatus = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: DebtStatus }) => api.updateDebtStatus(id, status),
+    onSuccess: (_, variables) => {
+      toast.success(variables.status === "paid" ? "Loan marked as returned." : "Loan moved back to open.");
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const deleteDebtMutation = useMutation({
+    mutationFn: api.deleteDebt,
+    onSuccess: () => {
+      setDebtToRemove(null);
+      toast.success("Loan entry removed.");
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
   const updateDonationStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: "pending" | "completed" }) => api.updateDonationStatus(id, status),
@@ -726,6 +1009,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const debtItems = debts.data?.debts ?? [];
   const donationItems = donations.data?.donations ?? [];
   const adminUserRows = adminUsers.data?.users ?? [];
   const adminTransactionRows = adminTransactions.data?.transactions ?? [];
@@ -859,7 +1143,49 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
 
     updateAdminUser.mutate({ id: userId, payload: draft });
   };
-  const navItems = [{ to: "/", label: "Dashboard", icon: Landmark }, { to: "/transactions", label: "Transactions", icon: Wallet }, { to: "/donations", label: "Donations", icon: HeartHandshake }, ...(isAdmin ? [{ to: "/admin", label: "Admin", icon: Shield }] : [])];
+  const handleDebtDraftChange = (field: keyof DebtDraft, value: string | number | "") => {
+    setDebtDraft((current) => ({ ...current, [field]: value }));
+  };
+  const addDebt = () => {
+    if (!debtDraft.friendName.trim()) {
+      toast.error("Add your friend's name.");
+      return;
+    }
+
+    if (debtDraft.amount === "" || !debtDraft.givenDate || !debtDraft.endDate) {
+      toast.error("Add amount, giving date, and end date.");
+      return;
+    }
+
+    if (debtDraft.givenDate > debtDraft.endDate) {
+      toast.error("Giving date must be before end date.");
+      return;
+    }
+
+    addDebtMutation.mutate(debtDraft);
+  };
+  const toggleDebtStatus = (id: string) => {
+    const debt = debtItems.find((item) => item._id === id);
+    if (!debt) {
+      toast.error("Loan entry not found.");
+      return;
+    }
+
+    updateDebtStatus.mutate({ id, status: debt.status === "active" ? "paid" : "active" });
+  };
+  const openRemoveDebtModal = (id: string) => {
+    const debt = debtItems.find((item) => item._id === id);
+    if (!debt) {
+      toast.error("Loan entry not found.");
+      return;
+    }
+
+    setDebtToRemove(debt);
+  };
+  const deleteDebt = (id: string) => {
+    deleteDebtMutation.mutate(id);
+  };
+  const navItems = [{ to: "/", label: "Dashboard", icon: Landmark }, { to: "/transactions", label: "Transactions", icon: Wallet }, { to: "/debts", label: "Debts", icon: Target }, { to: "/donations", label: "Donations", icon: HeartHandshake }, ...(isAdmin ? [{ to: "/admin", label: "Admin", icon: Shield }] : [])];
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.18),_transparent_35%),linear-gradient(135deg,#f8fafc,#dbeafe_45%,#f8fafc)] text-slate-900 transition-colors dark:bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.12),_transparent_35%),linear-gradient(135deg,#020617,#0f172a_45%,#020617)] dark:text-white">
@@ -935,8 +1261,10 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
           </nav>
 
           <div className="mt-8 rounded-[28px] bg-slate-950 p-5 text-white dark:bg-slate-50 dark:text-slate-950">
-            <p className="text-sm font-semibold">Donation tracker</p>
-            <p className="mt-2 text-sm opacity-80">{pendingDonations.length} pending and {completedDonations.length} completed</p>
+            <p className="text-sm font-semibold">Loan snapshot</p>
+            <p className="mt-2 text-sm opacity-80">
+              {debtItems.filter((item) => item.status === "active").length} open loans and {formatCurrency(debtItems.filter((item) => item.status === "active").reduce((sum, item) => sum + item.amount, 0))} still out
+            </p>
           </div>
         </aside>
 
@@ -1040,6 +1368,16 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
                       onExportPdf={() => setPdfExportOpen(true)}
                     />
                   </div>
+                } />
+                <Route path="/debts" element={
+                  <DebtView
+                    debts={debtItems}
+                    draft={debtDraft}
+                    onDraftChange={handleDebtDraftChange}
+                    onAddDebt={addDebt}
+                    onToggleStatus={toggleDebtStatus}
+                    onDeleteDebt={openRemoveDebtModal}
+                  />
                 } />
                 <Route path="/donations" element={
                   <div className="space-y-6">
@@ -1279,7 +1617,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
                 <option value="income">Income</option>
                 <option value="donation">Donation</option>
               </select>
-              <input type="datetime-local" value={transactionDraft.occurredAt.slice(0, 16)} onChange={(event) => setTransactionDraft((current) => ({ ...current, occurredAt: new Date(event.target.value).toISOString() }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
+              <input type="date" value={transactionDraft.occurredAt.slice(0, 10)} onChange={(event) => setTransactionDraft((current) => ({ ...current, occurredAt: new Date(event.target.value).toISOString() }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <button className="w-full rounded-2xl bg-slate-950 px-4 py-3 text-white dark:bg-cyan-400 dark:text-slate-950">Save transaction</button>
             </form>
           </div>
@@ -1357,18 +1695,70 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
           </div>
         </div>
       ) : null}
+
+      {debtToRemove ? (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/45 p-3 backdrop-blur-sm sm:p-4" onClick={() => setDebtToRemove(null)}>
+          <div className="mx-auto my-4 max-w-md rounded-[32px] border border-white/30 bg-white/90 p-5 shadow-2xl dark:border-white/10 dark:bg-slate-900/95 sm:my-12 sm:p-6" onClick={(event) => event.stopPropagation()}>
+            <p className="text-sm uppercase tracking-[0.24em] text-rose-500">Confirm removal</p>
+            <h3 className="mt-3 text-xl font-semibold text-slate-900 dark:text-white sm:text-2xl">Remove this loan entry?</h3>
+            <p className="mt-3 text-sm text-slate-500">
+              <span className="font-medium text-slate-900 dark:text-white">{debtToRemove.friendName}</span>
+              {" "}for {formatCurrency(debtToRemove.amount)} will be deleted from your lending tracker.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:flex-wrap sm:justify-end">
+              <button type="button" onClick={() => setDebtToRemove(null)} className="w-full rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200 sm:w-auto">
+                Cancel
+              </button>
+              <button type="button" onClick={() => deleteDebt(debtToRemove._id)} className="w-full rounded-full bg-rose-500 px-4 py-2 text-sm font-medium text-white sm:w-auto">
+                Remove loan
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 function RoutedApp() {
   const [ready, setReady] = useState(false);
-  const [autoLogin, setAutoLogin] = useState(true);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    void api.me()
+      .then((data) => {
+        if (!active) {
+          return;
+        }
+
+        setUser(data.user);
+        setReady(true);
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+
+        setUser(null);
+        setReady(false);
+      })
+      .finally(() => {
+        if (active) {
+          setCheckingSession(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
-    <LoginGate ready={ready} autoLogin={autoLogin} onAuthenticated={(authenticatedUser) => { setUser(authenticatedUser); setReady(true); setAutoLogin(false); }}>
-      <AppShell onLogout={() => { setUser(null); setReady(false); setAutoLogin(false); }} user={user} />
+    <LoginGate ready={ready} checkingSession={checkingSession} onAuthenticated={(authenticatedUser) => { setUser(authenticatedUser); setReady(true); }}>
+      <AppShell onLogout={() => { setUser(null); setReady(false); }} user={user} />
     </LoginGate>
   );
 }

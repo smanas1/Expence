@@ -7,6 +7,7 @@ import { adminRouter } from "./routes/admin.js";
 import { authRouter } from "./routes/auth.js";
 import { budgetsRouter } from "./routes/budgets.js";
 import { dashboardRouter } from "./routes/dashboard.js";
+import { debtsRouter } from "./routes/debts.js";
 import { donationsRouter } from "./routes/donations.js";
 import { transactionsRouter } from "./routes/transactions.js";
 export function createApp() {
@@ -24,6 +25,7 @@ export function createApp() {
     app.use("/api/dashboard", requireAuth, dashboardRouter);
     app.use("/api/transactions", requireAuth, transactionsRouter);
     app.use("/api/budgets", requireAuth, budgetsRouter);
+    app.use("/api/debts", requireAuth, debtsRouter);
     app.use("/api/donations", requireAuth, donationsRouter);
     app.use("/api/admin", requireAuth, requireAdmin, adminRouter);
     app.use((error, _req, res, _next) => {
