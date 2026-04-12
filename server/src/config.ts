@@ -12,3 +12,23 @@ export const config = {
   cookieDomain: process.env.COOKIE_DOMAIN,
   cookieSameSite: (process.env.COOKIE_SAME_SITE === "none" ? "none" : "lax") as "none" | "lax",
 };
+
+export function assertRuntimeConfig() {
+  const errors: string[] = [];
+
+  if (!process.env.MONGO_URI) {
+    errors.push("MONGO_URI is required in deployment environments.");
+  }
+
+  if (!process.env.JWT_SECRET) {
+    errors.push("JWT_SECRET is required in deployment environments.");
+  }
+
+  if (!process.env.CLIENT_URL) {
+    errors.push("CLIENT_URL is required in deployment environments.");
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Invalid runtime configuration: ${errors.join(" ")}`);
+  }
+}

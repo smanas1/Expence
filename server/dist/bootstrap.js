@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { config } from "./config.js";
+import { assertRuntimeConfig, config } from "./config.js";
 import { seedDemoUser } from "./lib/seed.js";
 let bootstrapPromise = null;
 async function connectToMongo(uri) {
@@ -9,6 +9,7 @@ async function connectToMongo(uri) {
 export function bootstrapServer() {
     if (!bootstrapPromise) {
         bootstrapPromise = (async () => {
+            assertRuntimeConfig();
             if (mongoose.connection.readyState === 0) {
                 try {
                     await connectToMongo(config.mongoUri);
