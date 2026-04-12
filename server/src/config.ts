@@ -9,5 +9,7 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET ?? "development-secret",
   cookieName: "fintrack_token",
   isProduction: process.env.NODE_ENV === "production",
+  cookieDomain: process.env.COOKIE_DOMAIN,
+  cookieSameSite: (process.env.COOKIE_SAME_SITE === "none" ? "none" : "lax") as "none" | "lax",
   useMemoryMongoFallback: process.env.USE_MEMORY_MONGO_FALLBACK !== "false",
 };

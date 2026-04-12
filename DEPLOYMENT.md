@@ -1,62 +1,57 @@
 # Deployment
 
-## Vercel
+This repo is now set up for separate frontend and backend deployments:
 
-This project is set up to deploy on Vercel with:
+- `client/` deploys as the Vite frontend
+- `server/` deploys as the Express API
 
-- a static Vite frontend from `client/dist`
-- a serverless Express API exposed through `api/[...path].ts`
+## Client Deployment
 
-## Prerequisites
+Build the frontend from the `client` directory.
 
-Before deploying, make sure you have:
+Required environment variable:
 
-- a MongoDB database reachable from Vercel
-- a strong JWT secret
-- a Vercel project connected to this repository
+```env
+VITE_API_URL=https://your-server-domain.com
+```
 
-## Build Setup
+Notes:
 
-The repo already includes `vercel.json` with the expected settings:
+- Do not include a trailing slash in `VITE_API_URL`
+- the frontend will call `${VITE_API_URL}/api/...`
+- local development still works through the Vite proxy without `VITE_API_URL`
 
-- framework: `vite`
-- build command: `pnpm --dir client build`
-- output directory: `client/dist`
-- API runtime: `nodejs20.x`
+## Server Deployment
 
-You usually do not need to change these manually in the Vercel UI.
+Deploy the API from the `server` directory.
 
-## Environment Variables
-
-Set these in the Vercel project settings:
-
-- `MONGO_URI`
-- `JWT_SECRET`
-- `CLIENT_URL`
-
-Example:
+Required environment variables:
 
 ```env
 MONGO_URI=mongodb://username:password@host:27017/expence
 JWT_SECRET=replace-this-with-a-long-random-secret
-CLIENT_URL=https://your-app.vercel.app
+CLIENT_URL=https://your-client-domain.com
 ```
 
-## Recommended Vercel Settings
+Optional cookie settings for separate domains:
 
-In Vercel:
+```env
+COOKIE_SAME_SITE=none
+COOKIE_DOMAIN=
+```
 
-1. Create a new project from this repo.
-2. Keep the package manager as `pnpm`.
-3. Add the environment variables above for Production.
-4. Deploy.
+Use `COOKIE_SAME_SITE=none` when the client and server are on different sites and you need cookie-based login to work across them. Leave `COOKIE_DOMAIN` empty unless you intentionally want to share cookies across subdomains.
 
-## Important Notes
+## Recommended Setup
 
-- `CLIENT_URL` should match the final public site URL exactly.
-- Cookies are marked `secure` in production, so authentication should be tested on the real HTTPS deployment.
-- The API bootstraps MongoDB and seeds the demo user when the function starts.
-- The seeded demo account is:
+1. Deploy `server/` first and copy its public URL.
+2. Set `VITE_API_URL` in the client deployment to that server URL.
+3. Set `CLIENT_URL` in the server deployment to the final client URL.
+4. If client and server are on different domains, set `COOKIE_SAME_SITE=none` on the server and use HTTPS on both.
+
+## Demo Seed
+
+The API seeds a demo account on startup:
 
 ```text
 Email: demo@fintrack.app
@@ -65,23 +60,7 @@ Password: demo1234
 
 ## Local Build Check
 
-You can verify both parts before deploying:
-
 ```bash
 pnpm --dir server build
 pnpm --dir client build
 ```
-
-## Troubleshooting
-
-If login does not persist:
-
-- confirm `CLIENT_URL` matches the deployed frontend domain
-- confirm the site is being accessed over HTTPS
-- confirm the API is being called through the same Vercel deployment
-
-If MongoDB fails to connect:
-
-- verify `MONGO_URI`
-- ensure your MongoDB network access rules allow Vercel
-- if using Atlas, prefer a connection string compatible with your environment

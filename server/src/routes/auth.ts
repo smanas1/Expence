@@ -12,8 +12,9 @@ function setSessionCookie(res: Response, userId: string) {
 
   res.cookie(config.cookieName, token, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: config.isProduction,
+    sameSite: config.cookieSameSite,
+    secure: config.isProduction || config.cookieSameSite === "none",
+    domain: config.cookieDomain,
     maxAge: 1000 * 60 * 60 * 24 * 7,
   });
 }
@@ -66,7 +67,12 @@ authRouter.post("/signup", async (req, res) => {
 });
 
 authRouter.post("/logout", (_req, res) => {
-  res.clearCookie(config.cookieName);
+  res.clearCookie(config.cookieName, {
+    httpOnly: true,
+    sameSite: config.cookieSameSite,
+    secure: config.isProduction || config.cookieSameSite === "none",
+    domain: config.cookieDomain,
+  });
   res.status(204).send();
 });
 

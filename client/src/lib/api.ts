@@ -1,7 +1,13 @@
 import type { AdminDonation, AdminTransaction, AdminUser, AuthUser, BudgetItem, DashboardSummary, DebtItem, DonationPlan, Transaction } from "../types";
 
+const apiBaseUrl = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+
+function buildApiUrl(path: string) {
+  return apiBaseUrl ? `${apiBaseUrl}${path}` : path;
+}
+
 async function request<T>(input: string, init?: RequestInit) {
-  const response = await fetch(input, {
+  const response = await fetch(buildApiUrl(input), {
     credentials: "include",
     headers: {
       "Content-Type": "application/json",

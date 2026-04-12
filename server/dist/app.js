@@ -13,7 +13,7 @@ import { transactionsRouter } from "./routes/transactions.js";
 export function createApp() {
     const app = express();
     app.use(cors({
-        origin: config.clientUrl ?? true,
+        origin: config.clientUrl ? [config.clientUrl] : true,
         credentials: true,
     }));
     app.use(express.json());
