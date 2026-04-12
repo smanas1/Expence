@@ -1,11 +1,9 @@
 import mongoose from "mongoose";
-import { MongoMemoryServer } from "mongodb-memory-server";
 
 import { config } from "./config.js";
 import { seedDemoUser } from "./lib/seed.js";
 
 let bootstrapPromise: Promise<void> | null = null;
-let memoryServer: MongoMemoryServer | null = null;
 
 async function connectToMongo(uri: string) {
   await mongoose.connect(uri);
@@ -32,20 +30,7 @@ export function bootstrapServer() {
             );
           }
 
-          const canUseMemoryFallback =
-            config.useMemoryMongoFallback &&
-            !config.isProduction &&
-            config.mongoUri === "mongodb://127.0.0.1:27017/fintech-dashboard";
-
-          if (!canUseMemoryFallback) {
-            throw error;
-          }
-
-          console.warn("Falling back to an in-memory MongoDB instance for local development.");
-          memoryServer = await MongoMemoryServer.create({
-            instance: { dbName: "fintech-dashboard" },
-          });
-          await connectToMongo(memoryServer.getUri());
+          throw error;
         }
       }
 

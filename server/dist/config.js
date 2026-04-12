@@ -9,5 +9,4 @@ export const config = {
     isProduction: process.env.NODE_ENV === "production",
     cookieDomain: process.env.COOKIE_DOMAIN,
     cookieSameSite: (process.env.COOKIE_SAME_SITE === "none" ? "none" : "lax"),
-    useMemoryMongoFallback: process.env.USE_MEMORY_MONGO_FALLBACK !== "false",
 };
