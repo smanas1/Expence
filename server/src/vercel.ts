@@ -11,17 +11,18 @@ type VercelResponse = {
   json: (body: unknown) => void;
 };
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  try {
-    await bootstrapServer();
-    return app(req as never, res as never);
-  } catch (error) {
-    console.error("Failed to handle Vercel request", {
-      method: req.method,
-      url: req.url,
-      error,
-    });
+export default function handler(req: VercelRequest, res: VercelResponse) {
+  bootstrapServer()
+    .then(() => {
+      app(req as never, res as never);
+    })
+    .catch((error) => {
+      console.error("Failed to handle Vercel request", {
+        method: req.method,
+        url: req.url,
+        error,
+      });
 
-    return res.status(500).json({ message: "Server failed to start." });
-  }
+      res.status(500).json({ message: "Server failed to start." });
+    });
 }
