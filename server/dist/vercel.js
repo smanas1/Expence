@@ -3,7 +3,7 @@ import { bootstrapServer } from "./bootstrap.js";
 export default async function handler(req, res) {
     try {
         await bootstrapServer();
-        return app(req, res);
+        app(req, res);
     }
     catch (error) {
         console.error("Failed to handle Vercel request", {
@@ -11,6 +11,6 @@ export default async function handler(req, res) {
             url: req.url,
             error,
         });
-        return res.status(500).json({ message: "Server failed to start." });
+        res.status(500).json({ message: "Server failed to start." });
     }
 }
