@@ -42,6 +42,8 @@ COOKIE_DOMAIN=
 
 Use `COOKIE_SAME_SITE=none` when the client and server are on different sites and you need cookie-based login to work across them. Leave `COOKIE_DOMAIN` empty unless you intentionally want to share cookies across subdomains.
 
+The frontend now also keeps a bearer token as a fallback for browsers that are strict about third-party cookies, but `COOKIE_SAME_SITE=none` is still recommended for the smoothest cross-site session handling.
+
 ## Recommended Setup
 
 1. Deploy `server/` first and copy its public URL.

@@ -1,8 +1,19 @@
 import { config } from "../config.js";
 import { verifyJwt } from "../lib/auth.js";
 import { UserModel } from "../models/User.js";
+function getRequestToken(req) {
+    const cookieToken = req.cookies?.[config.cookieName];
+    if (cookieToken) {
+        return cookieToken;
+    }
+    const authorization = req.headers.authorization;
+    if (!authorization?.startsWith("Bearer ")) {
+        return null;
+    }
+    return authorization.slice("Bearer ".length).trim() || null;
+}
 export async function requireAuth(req, res, next) {
-    const token = req.cookies?.[config.cookieName];
+    const token = getRequestToken(req);
     if (!token) {
         res.status(401).json({ message: "Authentication required." });
         return;

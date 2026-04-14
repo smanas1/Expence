@@ -13,6 +13,7 @@ function setSessionCookie(res, userId) {
         domain: config.cookieDomain,
         maxAge: 1000 * 60 * 60 * 24 * 7,
     });
+    return token;
 }
 authRouter.post("/login", async (req, res) => {
     const { email, password } = req.body;
@@ -22,8 +23,9 @@ authRouter.post("/login", async (req, res) => {
         res.status(401).json({ message: "Invalid email or password." });
         return;
     }
-    setSessionCookie(res, String(user._id));
+    const token = setSessionCookie(res, String(user._id));
     res.json({
+        token,
         user: { id: user._id, name: user.name, email: user.email, currency: user.currency, role: user.role },
     });
 });
@@ -46,8 +48,9 @@ authRouter.post("/signup", async (req, res) => {
         password,
         role: "user",
     });
-    setSessionCookie(res, String(user._id));
+    const token = setSessionCookie(res, String(user._id));
     res.status(201).json({
+        token,
         user: { id: user._id, name: user.name, email: user.email, currency: user.currency, role: user.role },
     });
 });

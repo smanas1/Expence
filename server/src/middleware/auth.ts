@@ -9,8 +9,24 @@ export interface AuthedRequest extends Request {
   userRole?: "user" | "admin";
 }
 
+function getRequestToken(req: Request) {
+  const cookieToken = req.cookies?.[config.cookieName];
+
+  if (cookieToken) {
+    return cookieToken;
+  }
+
+  const authorization = req.headers.authorization;
+
+  if (!authorization?.startsWith("Bearer ")) {
+    return null;
+  }
+
+  return authorization.slice("Bearer ".length).trim() || null;
+}
+
 export async function requireAuth(req: AuthedRequest, res: Response, next: NextFunction) {
-  const token = req.cookies?.[config.cookieName];
+  const token = getRequestToken(req);
 
   if (!token) {
     res.status(401).json({ message: "Authentication required." });

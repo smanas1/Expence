@@ -17,6 +17,8 @@ function setSessionCookie(res: Response, userId: string) {
     domain: config.cookieDomain,
     maxAge: 1000 * 60 * 60 * 24 * 7,
   });
+
+  return token;
 }
 
 authRouter.post("/login", async (req, res) => {
@@ -29,9 +31,10 @@ authRouter.post("/login", async (req, res) => {
     return;
   }
 
-  setSessionCookie(res, String(user._id));
+  const token = setSessionCookie(res, String(user._id));
 
   res.json({
+    token,
     user: { id: user._id, name: user.name, email: user.email, currency: user.currency, role: user.role },
   });
 });
@@ -59,9 +62,10 @@ authRouter.post("/signup", async (req, res) => {
     role: "user",
   });
 
-  setSessionCookie(res, String(user._id));
+  const token = setSessionCookie(res, String(user._id));
 
   res.status(201).json({
+    token,
     user: { id: user._id, name: user.name, email: user.email, currency: user.currency, role: user.role },
   });
 });
