@@ -33,6 +33,34 @@ debtsRouter.post("/", async (req: AuthedRequest, res) => {
   res.status(201).json(normalizeDebt(debt.toObject()));
 });
 
+debtsRouter.patch("/:id", async (req: AuthedRequest, res) => {
+  const debtId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+  const debt = await DebtModel.findOneAndUpdate(
+    {
+      _id: new mongoose.Types.ObjectId(debtId),
+      userId: new mongoose.Types.ObjectId(req.userId),
+    },
+    {
+      $set: {
+        friendName: req.body.friendName,
+        amount: req.body.amount,
+        givenDate: req.body.givenDate,
+        endDate: req.body.endDate,
+        notes: req.body.notes ?? "",
+      },
+    },
+    { returnDocument: "after" },
+  ).lean();
+
+  if (!debt) {
+    res.status(404).json({ message: "Debt not found." });
+    return;
+  }
+
+  res.json(normalizeDebt(debt));
+});
+
 debtsRouter.patch("/:id/status", async (req: AuthedRequest, res) => {
   const debtId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const nextStatus = req.body.status === "paid" ? "paid" : "active";

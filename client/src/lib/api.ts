@@ -84,6 +84,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  updateTransaction: (id: string, payload: Omit<Transaction, "_id">) =>
+    request<Transaction>(`/api/transactions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
   deleteTransactions: (ids: string[]) =>
     request<void>("/api/transactions/bulk", {
       method: "DELETE",
@@ -98,6 +103,11 @@ export const api = {
   addDebt: (payload: Omit<DebtItem, "_id" | "status" | "createdAt" | "settledAt">) =>
     request<DebtItem>("/api/debts", {
       method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateDebt: (id: string, payload: Omit<DebtItem, "_id" | "status" | "createdAt" | "settledAt">) =>
+    request<DebtItem>(`/api/debts/${id}`, {
+      method: "PATCH",
       body: JSON.stringify(payload),
     }),
   updateDebtStatus: (id: string, status: "active" | "paid") =>

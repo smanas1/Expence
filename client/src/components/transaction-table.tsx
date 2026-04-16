@@ -6,7 +6,7 @@ import {
   type ColumnDef,
   type RowSelectionState,
 } from "@tanstack/react-table";
-import { Download, Trash2 } from "lucide-react";
+import { Download, Pencil, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { formatCalendarDate, formatCurrency, formatRecentDate } from "../lib/format";
@@ -37,11 +37,12 @@ interface TransactionTableProps {
   rows: Transaction[];
   loading?: boolean;
   onDeleteSelected: (ids: string[]) => void;
+  onEditTransaction: (transaction: Transaction) => void;
   onRemoveDonation?: (id: string) => void;
   onExportPdf?: () => void;
 }
 
-export function TransactionTable({ rows, loading, onDeleteSelected, onRemoveDonation, onExportPdf }: TransactionTableProps) {
+export function TransactionTable({ rows, loading, onDeleteSelected, onEditTransaction, onRemoveDonation, onExportPdf }: TransactionTableProps) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const columns = useMemo<ColumnDef<Transaction>[]>(
@@ -66,22 +67,31 @@ export function TransactionTable({ rows, loading, onDeleteSelected, onRemoveDona
       {
         id: "actions",
         header: "Action",
-        cell: ({ row }) =>
-          row.original.kind === "donation" ? (
+        cell: ({ row }) => (
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => onRemoveDonation?.(row.original._id)}
-              className="inline-flex items-center gap-2 rounded-full border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-600 dark:border-rose-800 dark:text-rose-300"
+              onClick={() => onEditTransaction(row.original)}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
             >
-              <Trash2 className="h-3.5 w-3.5" />
-              Remove
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
             </button>
-          ) : (
-            <span className="text-xs text-slate-400">-</span>
-          ),
+            {row.original.kind === "donation" ? (
+              <button
+                type="button"
+                onClick={() => onRemoveDonation?.(row.original._id)}
+                className="inline-flex items-center gap-2 rounded-full border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-600 dark:border-rose-800 dark:text-rose-300"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Remove
+              </button>
+            ) : null}
+          </div>
+        ),
       },
     ],
-    [onRemoveDonation],
+    [onEditTransaction, onRemoveDonation],
   );
 
   const table = useReactTable({
@@ -165,16 +175,26 @@ export function TransactionTable({ rows, loading, onDeleteSelected, onRemoveDona
                     <p className={`mt-1 font-semibold ${transactionTone(row.original.kind).amount}`}>{formatCurrency(row.original.amount)}</p>
                   </div>
                 </div>
-                {row.original.kind === "donation" ? (
+                <div className="mt-4 flex flex-col gap-2">
                   <button
                     type="button"
-                    onClick={() => onRemoveDonation?.(row.original._id)}
-                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-rose-300 px-3 py-2 text-sm font-medium text-rose-600 dark:border-rose-800 dark:text-rose-300"
+                    onClick={() => onEditTransaction(row.original)}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Remove
+                    <Pencil className="h-3.5 w-3.5" />
+                    Edit
                   </button>
-                ) : null}
+                  {row.original.kind === "donation" ? (
+                    <button
+                      type="button"
+                      onClick={() => onRemoveDonation?.(row.original._id)}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-rose-300 px-3 py-2 text-sm font-medium text-rose-600 dark:border-rose-800 dark:text-rose-300"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
               </div>
             ))}
       </div>

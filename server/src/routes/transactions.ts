@@ -72,6 +72,43 @@ transactionsRouter.post("/", async (req: AuthedRequest, res) => {
   });
 });
 
+transactionsRouter.patch("/:id", async (req: AuthedRequest, res) => {
+  const transactionId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const userId = new mongoose.Types.ObjectId(req.userId);
+
+  const transaction = await TransactionModel.findOneAndUpdate(
+    {
+      _id: new mongoose.Types.ObjectId(transactionId),
+      userId,
+    },
+    {
+      $set: {
+        title: req.body.title,
+        amount: req.body.amount,
+        category: req.body.category ?? "",
+        section: req.body.section ?? "self",
+        kind: req.body.kind,
+        occurredAt: req.body.occurredAt,
+      },
+    },
+    { returnDocument: "after" },
+  ).lean();
+
+  if (!transaction) {
+    res.status(404).json({ message: "Transaction not found." });
+    return;
+  }
+
+  await recomputeUserTotals(userId);
+
+  res.json({
+    ...transaction,
+    _id: String(transaction._id),
+    category: transaction.category ?? "",
+    section: transaction.section ?? "self",
+  });
+});
+
 transactionsRouter.delete("/bulk", async (req: AuthedRequest, res) => {
   const userId = new mongoose.Types.ObjectId(req.userId);
   const ids = (req.body?.ids as string[]) ?? [];

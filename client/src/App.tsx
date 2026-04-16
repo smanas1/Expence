@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowDownCircle, ArrowUpCircle, Bolt, CheckCircle2, Clock3, HeartHandshake, Landmark, LogOut, Moon, Search, Shield, SunMedium, Target, Users, Wallet } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Bolt, CheckCircle2, Clock3, HeartHandshake, Landmark, LogOut, Moon, Pencil, Search, Shield, SunMedium, Target, Users, Wallet, X } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -29,6 +29,27 @@ type DebtDraft = {
 
 function formatCategoryLabel(category?: string) {
   return category?.trim() ? category : "Uncategorized";
+}
+
+function createEmptyDebtDraft(): DebtDraft {
+  return {
+    friendName: "",
+    amount: "",
+    givenDate: new Date().toISOString().slice(0, 10),
+    endDate: new Date().toISOString().slice(0, 10),
+    notes: "",
+  };
+}
+
+function createEmptyTransactionDraft(kind: TransactionKind = "expense"): TransactionDraft {
+  return {
+    title: "",
+    amount: "",
+    category: "",
+    section: "family",
+    kind,
+    occurredAt: new Date().toISOString(),
+  };
 }
 
 function transactionTone(kind: TransactionKind) {
@@ -542,14 +563,20 @@ function DebtView({
   debts,
   draft,
   onDraftChange,
-  onAddDebt,
+  onSubmitDebt,
+  onEditDebt,
+  onCancelEdit,
+  editingDebtId,
   onToggleStatus,
   onDeleteDebt,
 }: {
   debts: DebtItem[];
   draft: DebtDraft;
   onDraftChange: (field: keyof DebtDraft, value: string | number | "") => void;
-  onAddDebt: () => void;
+  onSubmitDebt: () => void;
+  onEditDebt: (id: string) => void;
+  onCancelEdit: () => void;
+  editingDebtId: string | null;
   onToggleStatus: (id: string) => void;
   onDeleteDebt: (id: string) => void;
 }) {
@@ -612,11 +639,25 @@ function DebtView({
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              onAddDebt();
+              onSubmitDebt();
             }}
           >
-            <p className="text-sm font-semibold text-slate-900 dark:text-white">Add loan entry</p>
-            <p className="mt-1 text-sm text-slate-500">Just save a title, amount, given date, and expected return date.</p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">{editingDebtId ? "Edit loan entry" : "Add loan entry"}</p>
+                <p className="mt-1 text-sm text-slate-500">Just save a title, amount, given date, and expected return date.</p>
+              </div>
+              {editingDebtId ? (
+                <button
+                  type="button"
+                  onClick={onCancelEdit}
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
+                >
+                  <X className="h-4 w-4" />
+                  Cancel
+                </button>
+              ) : null}
+            </div>
             <div className="mt-4 space-y-3">
               <input value={draft.friendName} onChange={(event) => onDraftChange("friendName", event.target.value)} placeholder="Title" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <input type="number" min="0" value={draft.amount} onChange={(event) => onDraftChange("amount", event.target.value === "" ? "" : Number(event.target.value))} placeholder="Amount" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
@@ -632,7 +673,9 @@ function DebtView({
               </div>
               <textarea value={draft.notes} onChange={(event) => onDraftChange("notes", event.target.value)} placeholder="Optional note" rows={3} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 outline-none dark:border-slate-700 dark:bg-slate-950/80" />
             </div>
-            <button className="mt-4 w-full rounded-2xl bg-slate-950 px-4 py-3 text-white dark:bg-cyan-400 dark:text-slate-950">Save debt</button>
+            <button className="mt-4 w-full rounded-2xl bg-slate-950 px-4 py-3 text-white dark:bg-cyan-400 dark:text-slate-950">
+              {editingDebtId ? "Update debt" : "Save debt"}
+            </button>
           </form>
         </GlassCard>
 
@@ -668,6 +711,12 @@ function DebtView({
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => onEditDebt(item._id)} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
+                      <span className="inline-flex items-center gap-2">
+                        <Pencil className="h-4 w-4" />
+                        Edit
+                      </span>
+                    </button>
                     <button type="button" onClick={() => onToggleStatus(item._id)} className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white dark:bg-cyan-400 dark:text-slate-950">
                       Mark returned
                     </button>
@@ -701,6 +750,12 @@ function DebtView({
                     <p className="mt-1 text-sm text-slate-500">{formatCurrency(item.amount)} · returned {item.settledAt ? formatCalendarDate(item.settledAt) : "recently"}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => onEditDebt(item._id)} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
+                      <span className="inline-flex items-center gap-2">
+                        <Pencil className="h-4 w-4" />
+                        Edit
+                      </span>
+                    </button>
                     <button type="button" onClick={() => onToggleStatus(item._id)} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
                       Move back to open
                     </button>
@@ -733,20 +788,16 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
   const [pdfExportOpen, setPdfExportOpen] = useState(false);
   const [donationToRemove, setDonationToRemove] = useState<DonationPlan | null>(null);
   const [debtToRemove, setDebtToRemove] = useState<DebtItem | null>(null);
+  const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
+  const [editingDebtId, setEditingDebtId] = useState<string | null>(null);
   const [adminUserDrafts, setAdminUserDrafts] = useState<Record<string, AdminUserDraft>>({});
   const [pdfExportDraft, setPdfExportDraft] = useState<PdfExportDraft>({
     startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10),
     endDate: new Date().toISOString().slice(0, 10),
     section: "all",
   });
-  const [debtDraft, setDebtDraft] = useState<DebtDraft>({
-    friendName: "",
-    amount: "",
-    givenDate: new Date().toISOString().slice(0, 10),
-    endDate: new Date().toISOString().slice(0, 10),
-    notes: "",
-  });
-  const [transactionDraft, setTransactionDraft] = useState<TransactionDraft>({ title: "", amount: "", category: "", section: "family", kind: "expense", occurredAt: new Date().toISOString() });
+  const [debtDraft, setDebtDraft] = useState<DebtDraft>(createEmptyDebtDraft);
+  const [transactionDraft, setTransactionDraft] = useState<TransactionDraft>(() => createEmptyTransactionDraft());
   const [donationDraft, setDonationDraft] = useState<DonationDraft>({ title: "", amount: "", status: "pending", initiatedAt: "2026-04-06T00:00:00.000Z", completedAt: null });
 
   const summary = useQuery({ queryKey: ["summary"], queryFn: api.summary });
@@ -806,8 +857,20 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
     mutationFn: (payload: TransactionDraft) => api.addTransaction({ ...payload, amount: Number(payload.amount) }),
     onSuccess: () => {
       setQuickExpenseOpen(false);
-      setTransactionDraft({ title: "", amount: "", category: "", section: "family", kind: "expense", occurredAt: new Date().toISOString() });
+      setEditingTransactionId(null);
+      setTransactionDraft(createEmptyTransactionDraft());
       toast.success("Transaction added successfully.");
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const updateTransaction = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: TransactionDraft }) => api.updateTransaction(id, { ...payload, amount: Number(payload.amount) }),
+    onSuccess: () => {
+      setQuickExpenseOpen(false);
+      setEditingTransactionId(null);
+      setTransactionDraft(createEmptyTransactionDraft());
+      toast.success("Transaction updated successfully.");
       invalidate();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -861,14 +924,25 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
         notes: payload.notes.trim(),
       }),
     onSuccess: () => {
-      setDebtDraft({
-        friendName: "",
-        amount: "",
-        givenDate: new Date().toISOString().slice(0, 10),
-        endDate: new Date().toISOString().slice(0, 10),
-        notes: "",
-      });
+      setDebtDraft(createEmptyDebtDraft());
       toast.success("Loan entry added.");
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const updateDebtMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: DebtDraft }) =>
+      api.updateDebt(id, {
+        friendName: payload.friendName.trim(),
+        amount: Number(payload.amount),
+        givenDate: new Date(payload.givenDate).toISOString(),
+        endDate: new Date(payload.endDate).toISOString(),
+        notes: payload.notes.trim(),
+      }),
+    onSuccess: () => {
+      setEditingDebtId(null);
+      setDebtDraft(createEmptyDebtDraft());
+      toast.success("Loan entry updated.");
       invalidate();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -1146,15 +1220,26 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
     return [...sections];
   }, [transactions.data]);
   const openQuickTransaction = (kind: TransactionKind) => {
+    setEditingTransactionId(null);
+    setTransactionDraft(createEmptyTransactionDraft(kind));
+    setQuickExpenseOpen(true);
+  };
+  const openEditTransaction = (transaction: Transaction) => {
+    setEditingTransactionId(transaction._id);
     setTransactionDraft({
-      title: "",
-      amount: "",
-      category: "",
-      section: "family",
-      kind,
-      occurredAt: new Date().toISOString(),
+      title: transaction.title,
+      amount: transaction.amount,
+      category: transaction.category ?? "",
+      section: transaction.section,
+      kind: transaction.kind,
+      occurredAt: transaction.occurredAt,
     });
     setQuickExpenseOpen(true);
+  };
+  const closeTransactionModal = () => {
+    setQuickExpenseOpen(false);
+    setEditingTransactionId(null);
+    setTransactionDraft(createEmptyTransactionDraft());
   };
   const handleAdminUserDraftChange = (userId: string, field: keyof AdminUserDraft, value: string) => {
     setAdminUserDrafts((current) => {
@@ -1196,7 +1281,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
   const handleDebtDraftChange = (field: keyof DebtDraft, value: string | number | "") => {
     setDebtDraft((current) => ({ ...current, [field]: value }));
   };
-  const addDebt = () => {
+  const submitDebt = () => {
     if (!debtDraft.friendName.trim()) {
       toast.error("Add a title.");
       return;
@@ -1212,7 +1297,32 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
       return;
     }
 
+    if (editingDebtId) {
+      updateDebtMutation.mutate({ id: editingDebtId, payload: debtDraft });
+      return;
+    }
+
     addDebtMutation.mutate(debtDraft);
+  };
+  const openEditDebt = (id: string) => {
+    const debt = debtItems.find((item) => item._id === id);
+    if (!debt) {
+      toast.error("Loan entry not found.");
+      return;
+    }
+
+    setEditingDebtId(id);
+    setDebtDraft({
+      friendName: debt.friendName,
+      amount: debt.amount,
+      givenDate: debt.givenDate.slice(0, 10),
+      endDate: debt.endDate.slice(0, 10),
+      notes: debt.notes,
+    });
+  };
+  const cancelDebtEdit = () => {
+    setEditingDebtId(null);
+    setDebtDraft(createEmptyDebtDraft());
   };
   const toggleDebtStatus = (id: string) => {
     const debt = debtItems.find((item) => item._id === id);
@@ -1240,7 +1350,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.18),_transparent_35%),linear-gradient(135deg,#f8fafc,#dbeafe_45%,#f8fafc)] text-slate-900 transition-colors dark:bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.12),_transparent_35%),linear-gradient(135deg,#020617,#0f172a_45%,#020617)] dark:text-white">
       <Toaster richColors position="top-right" />
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onQuickExpense={() => setQuickExpenseOpen(true)} />
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onQuickExpense={() => openQuickTransaction("expense")} />
       <div className="mx-auto max-w-[1600px] p-3 sm:p-4 lg:p-6">
         <div className="space-y-3 lg:hidden">
           <div className="rounded-[28px] border border-white/35 bg-white/55 p-4 shadow-xl shadow-slate-900/5 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/50">
@@ -1414,6 +1524,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
                       rows={transactions.data ?? []}
                       loading={transactions.isLoading}
                       onDeleteSelected={(ids) => ids.length && bulkDelete.mutate(ids)}
+                      onEditTransaction={openEditTransaction}
                       onRemoveDonation={openRemoveDonationModal}
                       onExportPdf={() => setPdfExportOpen(true)}
                     />
@@ -1424,7 +1535,10 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
                     debts={debtItems}
                     draft={debtDraft}
                     onDraftChange={handleDebtDraftChange}
-                    onAddDebt={addDebt}
+                    onSubmitDebt={submitDebt}
+                    onEditDebt={openEditDebt}
+                    onCancelEdit={cancelDebtEdit}
+                    editingDebtId={editingDebtId}
                     onToggleStatus={toggleDebtStatus}
                     onDeleteDebt={openRemoveDebtModal}
                   />
@@ -1651,13 +1765,24 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
       </div>
 
       {quickExpenseOpen ? (
-        <div className="fixed inset-0 z-40 overflow-y-auto bg-slate-950/45 p-3 backdrop-blur-sm sm:p-4" onClick={() => setQuickExpenseOpen(false)}>
+        <div className="fixed inset-0 z-40 overflow-y-auto bg-slate-950/45 p-3 backdrop-blur-sm sm:p-4" onClick={closeTransactionModal}>
           <div className="mx-auto my-4 max-w-lg rounded-[32px] border border-white/30 bg-white/80 p-5 shadow-2xl dark:border-white/10 dark:bg-slate-900/90 sm:my-12 sm:p-6" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="text-xl font-semibold">New transaction</h3>
-              <button onClick={() => setQuickExpenseOpen(false)} className="text-sm text-slate-500">Close</button>
+              <h3 className="text-xl font-semibold">{editingTransactionId ? "Edit transaction" : "New transaction"}</h3>
+              <button type="button" onClick={closeTransactionModal} className="text-sm text-slate-500">Close</button>
             </div>
-            <form className="mt-4 space-y-3" onSubmit={(event) => { event.preventDefault(); addTransaction.mutate(transactionDraft); }}>
+            <form
+              className="mt-4 space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (editingTransactionId) {
+                  updateTransaction.mutate({ id: editingTransactionId, payload: transactionDraft });
+                  return;
+                }
+
+                addTransaction.mutate(transactionDraft);
+              }}
+            >
               <input value={transactionDraft.title} onChange={(event) => setTransactionDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Title" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <input type="number" value={transactionDraft.amount} onChange={(event) => setTransactionDraft((current) => ({ ...current, amount: event.target.value === "" ? "" : Number(event.target.value) }))} placeholder="Amount in BDT" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <input value={transactionDraft.category ?? ""} onChange={(event) => setTransactionDraft((current) => ({ ...current, category: event.target.value }))} placeholder="Category (optional)" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
@@ -1668,7 +1793,9 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
                 <option value="donation">Donation</option>
               </select>
               <input type="date" value={transactionDraft.occurredAt.slice(0, 10)} onChange={(event) => setTransactionDraft((current) => ({ ...current, occurredAt: new Date(event.target.value).toISOString() }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
-              <button className="w-full rounded-2xl bg-slate-950 px-4 py-3 text-white dark:bg-cyan-400 dark:text-slate-950">Save transaction</button>
+              <button className="w-full rounded-2xl bg-slate-950 px-4 py-3 text-white dark:bg-cyan-400 dark:text-slate-950">
+                {editingTransactionId ? "Update transaction" : "Save transaction"}
+              </button>
             </form>
           </div>
         </div>
