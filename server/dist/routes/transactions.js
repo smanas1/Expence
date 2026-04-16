@@ -4,7 +4,8 @@ import { recomputeUserTotals, TransactionModel } from "../models/Transaction.js"
 export const transactionsRouter = Router();
 transactionsRouter.get("/", async (req, res) => {
     const userId = new mongoose.Types.ObjectId(req.userId);
-    const { q = "", startDate, endDate, kind, month, section } = req.query;
+    const { q = "", startDate, endDate, kind, month } = req.query;
+    const sectionQuery = req.query.section;
     const query = { userId };
     if (kind && kind !== "all") {
         query.kind = kind;
@@ -33,8 +34,15 @@ transactionsRouter.get("/", async (req, res) => {
             query.occurredAt.$lte = end;
         }
     }
-    if (section && section !== "all") {
-        query.section = section;
+    const requestedSections = (Array.isArray(sectionQuery) ? sectionQuery : typeof sectionQuery === "string" ? sectionQuery.split(",") : [])
+        .flatMap((item) => typeof item === "string" ? item.split(",") : [])
+        .map((item) => item.trim())
+        .filter((item) => item && item !== "all");
+    if (requestedSections.length === 1) {
+        query.section = requestedSections[0];
+    }
+    else if (requestedSections.length > 1) {
+        query.section = { $in: requestedSections };
     }
     const transactions = await TransactionModel.find(query).sort({ occurredAt: -1 }).lean();
     res.json(transactions.map((transaction) => ({

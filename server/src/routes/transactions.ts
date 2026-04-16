@@ -8,7 +8,8 @@ export const transactionsRouter = Router();
 
 transactionsRouter.get("/", async (req: AuthedRequest, res) => {
   const userId = new mongoose.Types.ObjectId(req.userId);
-  const { q = "", startDate, endDate, kind, month, section } = req.query as Record<string, string>;
+  const { q = "", startDate, endDate, kind, month } = req.query as Record<string, string>;
+  const sectionQuery = req.query.section;
 
   const query: Record<string, unknown> = { userId };
 
@@ -41,8 +42,15 @@ transactionsRouter.get("/", async (req: AuthedRequest, res) => {
     }
   }
 
-  if (section && section !== "all") {
-    query.section = section;
+  const requestedSections = (Array.isArray(sectionQuery) ? sectionQuery : typeof sectionQuery === "string" ? sectionQuery.split(",") : [])
+    .flatMap((item) => typeof item === "string" ? item.split(",") : [])
+    .map((item) => item.trim())
+    .filter((item) => item && item !== "all");
+
+  if (requestedSections.length === 1) {
+    query.section = requestedSections[0];
+  } else if (requestedSections.length > 1) {
+    query.section = { $in: requestedSections };
   }
 
   const transactions = await TransactionModel.find(query).sort({ occurredAt: -1 }).lean();

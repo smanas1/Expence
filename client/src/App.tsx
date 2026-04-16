@@ -16,7 +16,7 @@ import type { AdminDonation, AdminTransaction, AdminUser, AuthUser, DashboardSum
 const queryClient = new QueryClient();
 type DonationDraft = { title: string; amount: number | ""; status: "pending" | "completed"; initiatedAt: string; completedAt: string | null };
 type TransactionDraft = Omit<Transaction, "_id" | "amount"> & { amount: number | "" };
-type PdfExportDraft = { startDate: string; endDate: string; section: string };
+type PdfExportDraft = { startDate: string; endDate: string; sections: string[] };
 type AdminUserDraft = { name: string; email: string; currency: string; role: "user" | "admin"; password: string };
 type DebtStatus = "active" | "paid";
 type DebtDraft = {
@@ -794,7 +794,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
   const [pdfExportDraft, setPdfExportDraft] = useState<PdfExportDraft>({
     startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10),
     endDate: new Date().toISOString().slice(0, 10),
-    section: "all",
+    sections: [],
   });
   const [debtDraft, setDebtDraft] = useState<DebtDraft>(createEmptyDebtDraft);
   const [transactionDraft, setTransactionDraft] = useState<TransactionDraft>(() => createEmptyTransactionDraft());
@@ -1043,13 +1043,13 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
         startDate: payload.startDate,
         endDate: payload.endDate,
       });
-      if (payload.section !== "all") {
-        params.set("section", payload.section);
+      for (const section of payload.sections) {
+        params.append("section", section);
       }
 
       const rows = await api.transactions(params);
       if (!rows.length) {
-        throw new Error("No transactions found for this date range and section.");
+        throw new Error("No transactions found for this date range and selected sections.");
       }
 
       const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
@@ -1061,11 +1061,12 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
       const totalIncome = rows.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0);
       const totalExpense = rows.filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.amount, 0);
       const availableBalance = totalIncome - totalExpense;
+      const selectedSectionLabel = payload.sections.length ? payload.sections.join(", ") : "all sections";
 
       doc.setFontSize(18);
       doc.text("Transaction Report", 14, 18);
       doc.setFontSize(10);
-      doc.text(`Section: ${payload.section === "all" ? "all sections" : payload.section}`, 14, 28);
+      doc.text(`Sections: ${selectedSectionLabel}`, 14, 28);
       doc.text(`Date range: ${payload.startDate} to ${payload.endDate}`, 14, 34);
       doc.text(`Income: ${formatCurrency(totalIncome)}`, 14, 44);
       doc.text(`Expense: ${formatCurrency(totalExpense)}`, 78, 44);
@@ -1115,7 +1116,8 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
         },
       });
 
-      doc.save(`transactions-${payload.section}-${payload.startDate}-to-${payload.endDate}.pdf`);
+      const fileSectionLabel = payload.sections.length ? payload.sections.join("-") : "all-sections";
+      doc.save(`transactions-${fileSectionLabel}-${payload.startDate}-to-${payload.endDate}.pdf`);
     },
     onSuccess: () => {
       setPdfExportOpen(false);
@@ -1219,6 +1221,14 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
 
     return [...sections];
   }, [transactions.data]);
+  const togglePdfSection = (section: string) => {
+    setPdfExportDraft((current) => ({
+      ...current,
+      sections: current.sections.includes(section)
+        ? current.sections.filter((item) => item !== section)
+        : [...current.sections, section],
+    }));
+  };
   const openQuickTransaction = (kind: TransactionKind) => {
     setEditingTransactionId(null);
     setTransactionDraft(createEmptyTransactionDraft(kind));
@@ -1817,13 +1827,47 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
                 <input type="date" value={pdfExportDraft.endDate} onChange={(event) => setPdfExportDraft((current) => ({ ...current, endDate: event.target.value }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               </div>
               <div>
-                <label className="mb-2 block text-sm text-slate-500">Section</label>
-                <select value={pdfExportDraft.section} onChange={(event) => setPdfExportDraft((current) => ({ ...current, section: event.target.value }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80">
-                  <option value="all">All sections</option>
-                  {availableSections.map((section) => (
-                    <option key={section} value={section}>{section}</option>
-                  ))}
-                </select>
+                <label className="mb-2 block text-sm text-slate-500">Sections</label>
+                <div className="rounded-2xl border border-slate-200 bg-white/80 p-3 dark:border-slate-700 dark:bg-slate-950/80">
+                  <button
+                    type="button"
+                    onClick={() => setPdfExportDraft((current) => ({ ...current, sections: [] }))}
+                    className={cn(
+                      "mb-3 inline-flex rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+                      pdfExportDraft.sections.length === 0
+                        ? "bg-slate-950 text-white dark:bg-cyan-400 dark:text-slate-950"
+                        : "border border-slate-300 text-slate-700 dark:border-slate-700 dark:text-slate-200",
+                    )}
+                  >
+                    All sections
+                  </button>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {availableSections.map((section) => {
+                      const selected = pdfExportDraft.sections.includes(section);
+                      return (
+                        <button
+                          key={section}
+                          type="button"
+                          onClick={() => togglePdfSection(section)}
+                          className={cn(
+                            "flex items-center justify-between rounded-2xl border px-3 py-2 text-sm font-medium transition-colors",
+                            selected
+                              ? "border-cyan-500 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
+                              : "border-slate-200 text-slate-700 dark:border-slate-700 dark:text-slate-200",
+                          )}
+                        >
+                          <span className="capitalize">{section}</span>
+                          <span className={cn("h-4 w-4 rounded border", selected ? "border-cyan-500 bg-cyan-500" : "border-slate-300 dark:border-slate-600")} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500">
+                    {pdfExportDraft.sections.length
+                      ? `Selected: ${pdfExportDraft.sections.join(", ")}`
+                      : "No specific section selected, so the PDF will include all sections."}
+                  </p>
+                </div>
               </div>
             </div>
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:flex-wrap sm:justify-end">
