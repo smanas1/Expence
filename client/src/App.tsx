@@ -200,7 +200,7 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
         {[
           { label: "Income", value: totals?.totalIncome ?? 0, icon: Landmark, tone: "text-emerald-500", surface: "bg-emerald-500/10", note: "Last 30 days" },
           { label: "Expenses", value: totals?.totalExpense ?? 0, icon: Wallet, tone: "text-rose-500", surface: "bg-rose-500/10", note: "Last 30 days" },
-          { label: "Savings", value: totals?.totalSavings ?? 0, icon: Bolt, tone: "text-amber-500", surface: "bg-amber-500/10", note: netPosition >= 0 ? "Last 30 days trend" : "Needs attention" },
+          { label: "Balance", value: totals?.totalSavings ?? 0, icon: Bolt, tone: "text-amber-500", surface: "bg-amber-500/10", note: netPosition >= 0 ? "Last 30 days trend" : "Needs attention" },
           { label: "Transactions", value: recentTransactions.length, icon: Clock3, tone: "text-cyan-500", surface: "bg-cyan-500/10", note: "Logged in last 30 days" },
         ].map((item) => (
           <motion.div key={item.label} layout>
@@ -1060,7 +1060,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
       const doc = new jsPDF();
       const totalIncome = rows.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0);
       const totalExpense = rows.filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.amount, 0);
-      const availableBalance = totalIncome - totalExpense;
+      const dashboardBalance = summary.data?.totals?.totalSavings ?? 0;
       const selectedSectionLabel = payload.sections.length ? payload.sections.join(", ") : "all sections";
 
       doc.setFontSize(18);
@@ -1070,7 +1070,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
       doc.text(`Date range: ${payload.startDate} to ${payload.endDate}`, 14, 34);
       doc.text(`Income: ${formatCurrency(totalIncome)}`, 14, 44);
       doc.text(`Expense: ${formatCurrency(totalExpense)}`, 78, 44);
-      doc.text(`Available balance: ${formatCurrency(availableBalance)}`, 145, 44);
+      doc.text(`Balance: ${formatCurrency(dashboardBalance)}`, 145, 44);
 
       autoTable(doc, {
         startY: 52,
