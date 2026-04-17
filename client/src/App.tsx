@@ -1488,7 +1488,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
                       {[
                         { label: `${monthLabel} income`, value: totalMonthIncome, icon: ArrowUpCircle, tone: "text-emerald-500" },
                         { label: `${monthLabel} expense`, value: totalMonthExpense, icon: ArrowDownCircle, tone: "text-rose-500" },
-                        { label: `${monthLabel} balance`, value: totalMonthIncome - totalMonthExpense, icon: Wallet, tone: "text-cyan-500" },
+                        { label: "Balance", value: summary.data?.totals?.totalSavings ?? 0, icon: Bolt, tone: "text-amber-500" },
                       ].map((item) => (
                         <GlassCard key={item.label}>
                           <div className="flex items-center justify-between">
