@@ -31,6 +31,11 @@ function formatCategoryLabel(category?: string) {
   return category?.trim() ? category : "Uncategorized";
 }
 
+function normalizeSection(value: string) {
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, " ");
+  return normalized || "family";
+}
+
 function createEmptyDebtDraft(): DebtDraft {
   return {
     friendName: "",
@@ -46,7 +51,7 @@ function createEmptyTransactionDraft(kind: TransactionKind = "expense"): Transac
     title: "",
     amount: "",
     category: "",
-    section: "family",
+    section: normalizeSection("family"),
     kind,
     occurredAt: new Date().toISOString(),
   };
@@ -791,6 +796,8 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
   const [editingDebtId, setEditingDebtId] = useState<string | null>(null);
   const [adminUserDrafts, setAdminUserDrafts] = useState<Record<string, AdminUserDraft>>({});
+  const [newSectionName, setNewSectionName] = useState("");
+  const [customSections, setCustomSections] = useState<string[]>([]);
   const [pdfExportDraft, setPdfExportDraft] = useState<PdfExportDraft>({
     startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10),
     endDate: new Date().toISOString().slice(0, 10),
@@ -854,22 +861,25 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
   };
 
   const addTransaction = useMutation({
-    mutationFn: (payload: TransactionDraft) => api.addTransaction({ ...payload, amount: Number(payload.amount) }),
+    mutationFn: (payload: TransactionDraft) => api.addTransaction({ ...payload, amount: Number(payload.amount), section: normalizeSection(payload.section) }),
     onSuccess: () => {
       setQuickExpenseOpen(false);
       setEditingTransactionId(null);
       setTransactionDraft(createEmptyTransactionDraft());
+      setNewSectionName("");
       toast.success("Transaction added successfully.");
       invalidate();
     },
     onError: (error: Error) => toast.error(error.message),
   });
   const updateTransaction = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: TransactionDraft }) => api.updateTransaction(id, { ...payload, amount: Number(payload.amount) }),
+    mutationFn: ({ id, payload }: { id: string; payload: TransactionDraft }) =>
+      api.updateTransaction(id, { ...payload, amount: Number(payload.amount), section: normalizeSection(payload.section) }),
     onSuccess: () => {
       setQuickExpenseOpen(false);
       setEditingTransactionId(null);
       setTransactionDraft(createEmptyTransactionDraft());
+      setNewSectionName("");
       toast.success("Transaction updated successfully.");
       invalidate();
     },
@@ -1216,11 +1226,53 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
   const availableSections = useMemo(() => {
     const sections = new Set<string>(["self", "family"]);
     for (const item of transactions.data ?? []) {
-      sections.add(item.section || "self");
+      sections.add(normalizeSection(item.section || "self"));
+    }
+    for (const section of customSections) {
+      sections.add(normalizeSection(section));
+    }
+    sections.add(normalizeSection(transactionDraft.section || "family"));
+
+    return [...sections].sort((left, right) => {
+      const pinnedOrder = ["self", "family"];
+      const leftIndex = pinnedOrder.indexOf(left);
+      const rightIndex = pinnedOrder.indexOf(right);
+      if (leftIndex !== -1 || rightIndex !== -1) {
+        if (leftIndex === -1) {
+          return 1;
+        }
+        if (rightIndex === -1) {
+          return -1;
+        }
+        return leftIndex - rightIndex;
+      }
+
+      return left.localeCompare(right);
+    });
+  }, [customSections, transactionDraft.section, transactions.data]);
+  const areAllPdfSectionsSelected =
+    availableSections.length > 0 &&
+    availableSections.every((section) => pdfExportDraft.sections.includes(section));
+  const addSectionOption = () => {
+    const typedValue = newSectionName.trim();
+    if (!typedValue) {
+      toast.error("Enter a section name first.");
+      return;
     }
 
-    return [...sections];
-  }, [transactions.data]);
+    const normalized = normalizeSection(typedValue);
+    if (availableSections.includes(normalized)) {
+      setTransactionDraft((current) => ({ ...current, section: normalized }));
+      setNewSectionName("");
+      toast.error("This section already exists.");
+      return;
+    }
+
+    setCustomSections((current) => [...current, normalized]);
+    setTransactionDraft((current) => ({ ...current, section: normalized }));
+    setNewSectionName("");
+    toast.success("Section added.");
+  };
   const togglePdfSection = (section: string) => {
     setPdfExportDraft((current) => ({
       ...current,
@@ -1240,16 +1292,18 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
       title: transaction.title,
       amount: transaction.amount,
       category: transaction.category ?? "",
-      section: transaction.section,
+      section: normalizeSection(transaction.section),
       kind: transaction.kind,
       occurredAt: transaction.occurredAt,
     });
+    setNewSectionName("");
     setQuickExpenseOpen(true);
   };
   const closeTransactionModal = () => {
     setQuickExpenseOpen(false);
     setEditingTransactionId(null);
     setTransactionDraft(createEmptyTransactionDraft());
+    setNewSectionName("");
   };
   const handleAdminUserDraftChange = (userId: string, field: keyof AdminUserDraft, value: string) => {
     setAdminUserDrafts((current) => {
@@ -1796,7 +1850,39 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
               <input value={transactionDraft.title} onChange={(event) => setTransactionDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Title" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <input type="number" value={transactionDraft.amount} onChange={(event) => setTransactionDraft((current) => ({ ...current, amount: event.target.value === "" ? "" : Number(event.target.value) }))} placeholder="Amount in BDT" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <input value={transactionDraft.category ?? ""} onChange={(event) => setTransactionDraft((current) => ({ ...current, category: event.target.value }))} placeholder="Category (optional)" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
-              <input value={transactionDraft.section} onChange={(event) => setTransactionDraft((current) => ({ ...current, section: event.target.value.toLowerCase() || "family" }))} placeholder="Section like self or family" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
+              <div className="space-y-2">
+                <label className="block text-sm text-slate-500">Section</label>
+                <select
+                  value={normalizeSection(transactionDraft.section)}
+                  onChange={(event) => setTransactionDraft((current) => ({ ...current, section: normalizeSection(event.target.value) }))}
+                  className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80"
+                >
+                  {availableSections.map((section) => (
+                    <option key={section} value={section}>{section}</option>
+                  ))}
+                </select>
+                <div className="flex gap-2">
+                  <input
+                    value={newSectionName}
+                    onChange={(event) => setNewSectionName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        addSectionOption();
+                      }
+                    }}
+                    placeholder="Add a new section"
+                    className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80"
+                  />
+                  <button
+                    type="button"
+                    onClick={addSectionOption}
+                    className="rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 dark:border-slate-600 dark:text-slate-200"
+                  >
+                    Add section
+                  </button>
+                </div>
+              </div>
               <select value={transactionDraft.kind} onChange={(event) => setTransactionDraft((current) => ({ ...current, kind: event.target.value as TransactionKind }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80">
                 <option value="expense">Expense</option>
                 <option value="income">Income</option>
@@ -1831,10 +1917,15 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
                 <div className="rounded-2xl border border-slate-200 bg-white/80 p-3 dark:border-slate-700 dark:bg-slate-950/80">
                   <button
                     type="button"
-                    onClick={() => setPdfExportDraft((current) => ({ ...current, sections: [] }))}
+                    onClick={() =>
+                      setPdfExportDraft((current) => ({
+                        ...current,
+                        sections: areAllPdfSectionsSelected ? [] : [...availableSections],
+                      }))
+                    }
                     className={cn(
                       "mb-3 inline-flex rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
-                      pdfExportDraft.sections.length === 0
+                      areAllPdfSectionsSelected
                         ? "bg-slate-950 text-white dark:bg-cyan-400 dark:text-slate-950"
                         : "border border-slate-300 text-slate-700 dark:border-slate-700 dark:text-slate-200",
                     )}
@@ -1863,7 +1954,9 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
                     })}
                   </div>
                   <p className="mt-3 text-xs text-slate-500">
-                    {pdfExportDraft.sections.length
+                    {areAllPdfSectionsSelected
+                      ? "All sections selected."
+                      : pdfExportDraft.sections.length
                       ? `Selected: ${pdfExportDraft.sections.join(", ")}`
                       : "No specific section selected, so the PDF will include all sections."}
                   </p>
