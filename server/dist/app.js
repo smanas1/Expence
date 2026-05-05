@@ -9,6 +9,7 @@ import { budgetsRouter } from "./routes/budgets.js";
 import { dashboardRouter } from "./routes/dashboard.js";
 import { debtsRouter } from "./routes/debts.js";
 import { donationsRouter } from "./routes/donations.js";
+import { recordsRouter } from "./routes/records.js";
 import { transactionsRouter } from "./routes/transactions.js";
 export function createApp() {
     const app = express();
@@ -23,6 +24,7 @@ export function createApp() {
     });
     app.use("/api/auth", authRouter);
     app.use("/api/dashboard", requireAuth, dashboardRouter);
+    app.use("/api/records", requireAuth, recordsRouter);
     app.use("/api/transactions", requireAuth, transactionsRouter);
     app.use("/api/budgets", requireAuth, budgetsRouter);
     app.use("/api/debts", requireAuth, debtsRouter);

@@ -1,11 +1,13 @@
 import mongoose from "mongoose";
 import { Router } from "express";
+import { ensureRecordsBackfilledForUser } from "../lib/records.js";
 import { BudgetModel } from "../models/Budget.js";
 import { DonationPlanModel, normalizeDonationPlan } from "../models/DonationPlan.js";
 import { TransactionModel } from "../models/Transaction.js";
 export const dashboardRouter = Router();
 dashboardRouter.get("/summary", async (req, res) => {
     const userId = new mongoose.Types.ObjectId(req.userId);
+    await ensureRecordsBackfilledForUser(userId);
     const month = new Date().toISOString().slice(0, 7);
     const windowStart = new Date();
     windowStart.setHours(0, 0, 0, 0);
@@ -118,6 +120,7 @@ dashboardRouter.get("/summary", async (req, res) => {
             _id: String(transaction._id),
             category: transaction.category ?? "",
             section: transaction.section ?? "self",
+            recordId: transaction.recordId ? String(transaction.recordId) : null,
         })),
         donationPlans: plans
             .map(normalizeDonationPlan)

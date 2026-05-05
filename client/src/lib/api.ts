@@ -1,4 +1,4 @@
-import type { AdminDonation, AdminTransaction, AdminUser, AuthUser, BudgetItem, DashboardSummary, DebtItem, DonationPlan, Transaction } from "../types";
+import type { AdminDonation, AdminTransaction, AdminUser, AuthUser, BudgetItem, DashboardSummary, DebtItem, DonationPlan, RecordItem, RecordListItem, RecordSummary, Transaction } from "../types";
 
 const apiBaseUrl = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const authTokenStorageKey = "fintrack_auth_token";
@@ -78,6 +78,22 @@ export const api = {
       clearStoredAuthToken();
     }),
   summary: () => request<DashboardSummary>("/api/dashboard/summary"),
+  records: () => request<{ records: RecordListItem[] }>("/api/records"),
+  createRecord: (payload: Pick<RecordItem, "name" | "note" | "color">) =>
+    request<{ record: RecordItem }>("/api/records", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  record: (id: string) => request<{ record: RecordSummary }>(`/api/records/${id}`),
+  updateRecord: (id: string, payload: Pick<RecordItem, "name" | "note" | "color">) =>
+    request<{ record: RecordItem }>(`/api/records/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  deleteRecord: (id: string) =>
+    request<void>(`/api/records/${id}`, {
+      method: "DELETE",
+    }),
   transactions: (params: URLSearchParams) => request<Transaction[]>(`/api/transactions?${params.toString()}`),
   addTransaction: (payload: Omit<Transaction, "_id">) =>
     request<Transaction>("/api/transactions", {

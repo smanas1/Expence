@@ -17,10 +17,41 @@ export interface Transaction {
   section: string;
   kind: TransactionKind;
   occurredAt: string;
+  recordId?: string | null;
 }
 
 export interface AdminTransaction extends Transaction {
   user: { id: string; name: string; email: string } | null;
+}
+
+export interface RecordItem {
+  _id: string;
+  name: string;
+  note: string;
+  color: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RecordListItem extends RecordItem {
+  totalIncome: number;
+  totalExpense: number;
+  balance: number;
+  entryCount: number;
+  lastActivityAt: string | null;
+}
+
+export interface RecordSummary extends RecordItem {
+  totalIncome: number;
+  totalExpense: number;
+  balance: number;
+  recentTransactions: Transaction[];
+  categoryBreakdown: Array<{
+    category: string;
+    income: number;
+    expense: number;
+    total: number;
+  }>;
 }
 
 export interface BudgetItem {

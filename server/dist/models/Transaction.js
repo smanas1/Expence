@@ -2,6 +2,7 @@ import mongoose, { Schema } from "mongoose";
 import { UserTotalsModel } from "./UserTotals.js";
 const transactionSchema = new Schema({
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    recordId: { type: Schema.Types.ObjectId, ref: "Record", default: null, index: true },
     title: { type: String, required: true },
     amount: { type: Number, required: true },
     category: { type: String, default: "" },

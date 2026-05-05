@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { assertRuntimeConfig, config } from "./config.js";
+import { ensureRecordsBackfilled } from "./lib/records.js";
 import { seedDemoUser } from "./lib/seed.js";
 let bootstrapPromise = null;
 async function connectToMongo(uri) {
@@ -27,6 +28,7 @@ export function bootstrapServer() {
                 }
             }
             await seedDemoUser();
+            await ensureRecordsBackfilled();
         })();
     }
     return bootstrapPromise;

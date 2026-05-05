@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowDownCircle, ArrowUpCircle, Bolt, CheckCircle2, Clock3, HeartHandshake, Landmark, LogOut, Moon, Pencil, Search, Shield, SunMedium, Target, Users, Wallet, X } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Bolt, CheckCircle2, Clock3, Download, FolderKanban, HeartHandshake, Landmark, LogOut, Moon, Pencil, Plus, Search, Shield, SunMedium, Target, Users, Wallet, X } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Toaster, toast } from "sonner";
 
@@ -11,11 +11,12 @@ import { TransactionTable } from "./components/transaction-table";
 import { api } from "./lib/api";
 import { formatCalendarDate, formatCurrency, formatRecentDate } from "./lib/format";
 import { cn } from "./lib/utils";
-import type { AdminDonation, AdminTransaction, AdminUser, AuthUser, DashboardSummary, DebtItem, DonationPlan, Transaction, TransactionKind } from "./types";
+import type { AdminDonation, AdminTransaction, AdminUser, AuthUser, DashboardSummary, DebtItem, DonationPlan, RecordItem, RecordListItem, RecordSummary, Transaction, TransactionKind } from "./types";
 
 const queryClient = new QueryClient();
 type DonationDraft = { title: string; amount: number | ""; status: "pending" | "completed"; initiatedAt: string; completedAt: string | null };
 type TransactionDraft = Omit<Transaction, "_id" | "amount"> & { amount: number | "" };
+type RecordDraft = Pick<RecordItem, "name" | "note" | "color">;
 type PdfExportDraft = { startDate: string; endDate: string; sections: string[] };
 type AdminUserDraft = { name: string; email: string; currency: string; role: "user" | "admin"; password: string };
 type DebtStatus = "active" | "paid";
@@ -31,9 +32,81 @@ function formatCategoryLabel(category?: string) {
   return category?.trim() ? category : "Uncategorized";
 }
 
+function sanitizeFilePart(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "record";
+}
+
 function normalizeSection(value: string) {
   const normalized = value.trim().toLowerCase().replace(/\s+/g, " ");
   return normalized || "family";
+}
+
+async function downloadTransactionsPdf({
+  rows,
+  title,
+  subtitleLines,
+  balanceAmount,
+  filename,
+}: {
+  rows: Transaction[];
+  title: string;
+  subtitleLines: string[];
+  balanceAmount?: number;
+  filename: string;
+}) {
+  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+    import("jspdf"),
+    import("jspdf-autotable"),
+  ]);
+
+  const totalIncome = rows.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0);
+  const totalExpense = rows.filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.amount, 0);
+  const reportBalance = balanceAmount ?? totalIncome - totalExpense;
+  const summaryStartY = 28 + subtitleLines.length * 6;
+
+  const doc = new jsPDF();
+  doc.setFontSize(18);
+  doc.text(title, 14, 18);
+  doc.setFontSize(10);
+  subtitleLines.forEach((line, index) => doc.text(line, 14, 28 + index * 6));
+  doc.text(`Income: ${formatCurrency(totalIncome)}`, 14, summaryStartY + 4);
+  doc.text(`Expense: ${formatCurrency(totalExpense)}`, 78, summaryStartY + 4);
+  doc.text(`Balance: ${formatCurrency(reportBalance)}`, 145, summaryStartY + 4);
+
+  autoTable(doc, {
+    startY: summaryStartY + 12,
+    head: [["Date", "Title", "Category", "Section", "Type", "Amount"]],
+    body: rows.map((row) => [
+      formatCalendarDate(row.occurredAt),
+      row.title,
+      formatCategoryLabel(row.category),
+      row.section,
+      row.kind,
+      formatCurrency(row.amount),
+    ]),
+    styles: { fontSize: 9, cellPadding: 3 },
+    headStyles: { fillColor: [15, 23, 42] },
+    didParseCell: (hookData) => {
+      if (hookData.section !== "body") {
+        return;
+      }
+
+      const row = rows[hookData.row.index];
+      if (!row || hookData.column.index !== 5) {
+        return;
+      }
+
+      if (row.kind === "income") {
+        hookData.cell.styles.textColor = [5, 150, 105];
+        hookData.cell.styles.fontStyle = "bold";
+      } else if (row.kind === "expense") {
+        hookData.cell.styles.textColor = [225, 29, 72];
+        hookData.cell.styles.fontStyle = "bold";
+      }
+    },
+  });
+
+  doc.save(filename);
 }
 
 function createEmptyDebtDraft(): DebtDraft {
@@ -54,6 +127,15 @@ function createEmptyTransactionDraft(kind: TransactionKind = "expense"): Transac
     section: normalizeSection("family"),
     kind,
     occurredAt: new Date().toISOString(),
+    recordId: null,
+  };
+}
+
+function createEmptyRecordDraft(): RecordDraft {
+  return {
+    name: "",
+    note: "",
+    color: "#0f766e",
   };
 }
 
@@ -342,6 +424,289 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
           </div>
         ) : null}
       </GlassCard>
+    </div>
+  );
+}
+
+function RecordsGalleryView({
+  records,
+  loading,
+  onCreateRecord,
+}: {
+  records: RecordListItem[];
+  loading?: boolean;
+  onCreateRecord: () => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <GlassCard className="border-slate-200/80 bg-white/85 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-900 dark:text-white">Record Workspace</p>
+            <p className="mt-1 text-sm text-slate-500">Create a dedicated record for each budget story, then keep income and expense activity inside that record only.</p>
+          </div>
+          <button type="button" onClick={onCreateRecord} className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white dark:bg-cyan-400 dark:text-slate-950">
+            <Plus className="h-4 w-4" />
+            New record
+          </button>
+        </div>
+      </GlassCard>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {loading
+          ? Array.from({ length: 6 }).map((_, index) => <GlassCard key={index} className="h-56 animate-pulse bg-slate-100 dark:bg-slate-900/60"> </GlassCard>)
+          : records.map((record) => (
+              <NavLink key={record._id} to={`/records/${record._id}`} className="group">
+                <GlassCard className="h-full border-slate-200/80 bg-white/85 shadow-lg shadow-slate-900/5 transition-transform duration-200 group-hover:-translate-y-1 dark:border-slate-800 dark:bg-slate-900/70">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Dedicated record</p>
+                      <h3 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{record.name}</h3>
+                    </div>
+                    <div className="h-12 w-12 rounded-2xl" style={{ backgroundColor: record.color }} />
+                  </div>
+                  <p className="mt-3 min-h-12 text-sm text-slate-500">{record.note || "A clean workspace ready for record-specific income and expense activity."}</p>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl bg-emerald-500/10 p-3">
+                      <p className="text-xs uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">Income</p>
+                      <p className="mt-2 font-semibold text-slate-900 dark:text-white">{formatCurrency(record.totalIncome)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-rose-500/10 p-3">
+                      <p className="text-xs uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300">Expense</p>
+                      <p className="mt-2 font-semibold text-slate-900 dark:text-white">{formatCurrency(record.totalExpense)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-cyan-500/10 p-3">
+                      <p className="text-xs uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">Balance</p>
+                      <p className="mt-2 font-semibold text-slate-900 dark:text-white">{formatCurrency(record.balance)}</p>
+                    </div>
+                  </div>
+                  <div className="mt-5 flex items-center justify-between text-sm text-slate-500">
+                    <span>{record.entryCount} entries</span>
+                    <span>{record.lastActivityAt ? formatRecentDate(record.lastActivityAt) : "No activity yet"}</span>
+                  </div>
+                </GlassCard>
+              </NavLink>
+            ))}
+      </div>
+
+      {!loading && !records.length ? (
+        <GlassCard className="border-dashed border-slate-300 bg-white/80 text-center dark:border-slate-700 dark:bg-slate-900/60">
+          <FolderKanban className="mx-auto h-10 w-10 text-cyan-500" />
+          <h3 className="mt-4 text-xl font-semibold text-slate-900 dark:text-white">Start your first record</h3>
+          <p className="mt-2 text-sm text-slate-500">Create one record for home, one for business, or one for any other budget story you want to track separately.</p>
+          <button type="button" onClick={onCreateRecord} className="mt-5 inline-flex items-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white dark:bg-cyan-400 dark:text-slate-950">
+            <Plus className="h-4 w-4" />
+            Create record
+          </button>
+        </GlassCard>
+      ) : null}
+    </div>
+  );
+}
+
+function RecordDetailView({
+  onCreateTransaction,
+  onEditRecord,
+  onDeleteRecord,
+  onEditTransaction,
+  onDeleteSelected,
+}: {
+  onCreateTransaction: (kind: TransactionKind, recordId: string) => void;
+  onEditRecord: (record: RecordSummary) => void;
+  onDeleteRecord: (record: RecordSummary) => void;
+  onEditTransaction: (transaction: Transaction) => void;
+  onDeleteSelected: (ids: string[]) => void;
+}) {
+  const { recordId = "" } = useParams();
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const [filters, setFilters] = useState({ q: "", kind: "all", month: currentMonth });
+  const recordSummary = useQuery({
+    queryKey: ["record", recordId],
+    queryFn: () => api.record(recordId),
+    enabled: !!recordId,
+  });
+  const recordTransactions = useQuery({
+    queryKey: ["record-transactions", recordId, filters],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      params.set("recordId", recordId);
+      params.set("month", filters.month);
+      params.set("kind", filters.kind);
+      params.set("q", filters.q);
+      return api.transactions(params);
+    },
+    enabled: !!recordId,
+  });
+  const exportRecordPdf = useMutation({
+    mutationFn: async (recordToExport: RecordSummary) => {
+      const params = new URLSearchParams();
+      params.set("recordId", recordToExport._id);
+      params.set("kind", "all");
+
+      const rows = await api.transactions(params);
+      if (!rows.length) {
+        throw new Error("No transactions found for this record.");
+      }
+
+      await downloadTransactionsPdf({
+        rows,
+        title: `${recordToExport.name} Transaction Report`,
+        subtitleLines: [
+          `Record: ${recordToExport.name}`,
+          `Generated: ${formatCalendarDate(new Date().toISOString())}`,
+          `Transactions: ${rows.length}`,
+        ],
+        balanceAmount: recordToExport.balance,
+        filename: `record-${sanitizeFilePart(recordToExport.name)}-transactions.pdf`,
+      });
+    },
+    onSuccess: () => toast.success("Record PDF downloaded successfully."),
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const record = recordSummary.data?.record;
+  const filteredIncome = (recordTransactions.data ?? []).filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0);
+  const filteredExpense = (recordTransactions.data ?? []).filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.amount, 0);
+
+  if (recordSummary.isLoading) {
+    return <GlassCard className="h-64 animate-pulse bg-slate-100 dark:bg-slate-900/60"> </GlassCard>;
+  }
+
+  if (!record) {
+    return (
+      <GlassCard className="border-dashed border-slate-300 bg-white/80 text-center dark:border-slate-700 dark:bg-slate-900/60">
+        <p className="text-lg font-semibold text-slate-900 dark:text-white">Record not found</p>
+        <p className="mt-2 text-sm text-slate-500">This record may have been deleted or never existed.</p>
+      </GlassCard>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <GlassCard className="border-slate-200/80 bg-white/85 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-2xl" style={{ backgroundColor: record.color }} />
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Record detail</p>
+                <h2 className="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">{record.name}</h2>
+              </div>
+            </div>
+            <p className="mt-4 max-w-2xl text-sm text-slate-500">{record.note || "This record keeps its own dedicated income and expense history."}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => onCreateTransaction("income", record._id)} className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
+              Add income
+            </button>
+            <button type="button" onClick={() => onCreateTransaction("expense", record._id)} className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white dark:bg-cyan-400 dark:text-slate-950">
+              Add expense
+            </button>
+            <button type="button" onClick={() => exportRecordPdf.mutate(record)} disabled={exportRecordPdf.isPending} className="inline-flex items-center gap-2 rounded-full border border-cyan-300 px-4 py-2 text-sm font-medium text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-cyan-800 dark:text-cyan-300">
+              <Download className="h-4 w-4" />
+              {exportRecordPdf.isPending ? "Generating..." : "Download PDF"}
+            </button>
+            <button type="button" onClick={() => onEditRecord(record)} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
+              Edit record
+            </button>
+            <button type="button" onClick={() => onDeleteRecord(record)} className="rounded-full border border-rose-300 px-4 py-2 text-sm font-medium text-rose-600 dark:border-rose-800 dark:text-rose-300">
+              Delete record
+            </button>
+          </div>
+        </div>
+      </GlassCard>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: "All-time income", value: record.totalIncome, icon: ArrowUpCircle, tone: "text-emerald-500" },
+          { label: "All-time expense", value: record.totalExpense, icon: ArrowDownCircle, tone: "text-rose-500" },
+          { label: "All-time balance", value: record.balance, icon: Bolt, tone: "text-cyan-500" },
+          { label: "This month balance", value: filteredIncome - filteredExpense, icon: Wallet, tone: "text-amber-500" },
+        ].map((item) => (
+          <GlassCard key={item.label}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-500">{item.label}</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{formatCurrency(item.value)}</p>
+              </div>
+              <item.icon className={cn("h-6 w-6", item.tone)} />
+            </div>
+          </GlassCard>
+        ))}
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
+        <GlassCard className="border-slate-200/80 bg-white/85 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">Record ledger</p>
+              <p className="mt-1 text-sm text-slate-500">Filter the income and expense activity that belongs only to this record.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <input type="month" value={filters.month} onChange={(event) => setFilters((current) => ({ ...current, month: event.target.value }))} className="rounded-2xl border border-white/30 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70" />
+              <select value={filters.kind} onChange={(event) => setFilters((current) => ({ ...current, kind: event.target.value }))} className="rounded-2xl border border-white/30 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70">
+                <option value="all">Income and expense</option>
+                <option value="income">Income only</option>
+                <option value="expense">Expense only</option>
+              </select>
+              <input value={filters.q} onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} placeholder="Search title or category" className="rounded-2xl border border-white/30 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70" />
+            </div>
+          </div>
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            <div className="rounded-3xl bg-emerald-500/10 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">This month income</p>
+              <p className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{formatCurrency(filteredIncome)}</p>
+            </div>
+            <div className="rounded-3xl bg-rose-500/10 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300">This month expense</p>
+              <p className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{formatCurrency(filteredExpense)}</p>
+            </div>
+            <div className="rounded-3xl bg-cyan-500/10 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">This month balance</p>
+              <p className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{formatCurrency(filteredIncome - filteredExpense)}</p>
+            </div>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="border-slate-200/80 bg-white/85 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">Category breakdown</p>
+              <p className="text-sm text-slate-500">Where this record is earning and spending.</p>
+            </div>
+            <Users className="h-5 w-5 text-cyan-500" />
+          </div>
+          <div className="mt-4 space-y-3">
+            {record.categoryBreakdown.length ? record.categoryBreakdown.slice(0, 5).map((item) => (
+              <div key={item.category} className="rounded-3xl bg-slate-50/90 p-4 dark:bg-slate-950/70">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-medium text-slate-900 dark:text-white">{item.category}</p>
+                  <p className="text-sm text-slate-500">{formatCurrency(item.total)}</p>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-2xl bg-emerald-500/10 p-3">
+                    <p className="text-xs uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">Income</p>
+                    <p className="mt-2 font-semibold text-slate-900 dark:text-white">{formatCurrency(item.income)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-rose-500/10 p-3">
+                    <p className="text-xs uppercase tracking-[0.16em] text-rose-700 dark:text-rose-300">Expense</p>
+                    <p className="mt-2 font-semibold text-slate-900 dark:text-white">{formatCurrency(item.expense)}</p>
+                  </div>
+                </div>
+              </div>
+            )) : (
+              <div className="rounded-3xl border border-dashed border-slate-300 p-6 text-sm text-slate-500 dark:border-slate-700">Add your first income or expense inside this record to see the breakdown.</div>
+            )}
+          </div>
+        </GlassCard>
+      </div>
+
+      <TransactionTable
+        rows={recordTransactions.data ?? []}
+        loading={recordTransactions.isLoading}
+        onDeleteSelected={onDeleteSelected}
+        onEditTransaction={onEditTransaction}
+      />
     </div>
   );
 }
@@ -784,20 +1149,23 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
   const queryClientLocal = useQueryClient();
   const { theme, toggle } = useThemeMode();
   const location = useLocation();
+  const navigate = useNavigate();
   const isAdmin = user?.role === "admin";
   const currentMonth = new Date().toISOString().slice(0, 7);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [filters, setFilters] = useState({ q: "", kind: "all", month: currentMonth, section: "all" });
+  const [filters] = useState({ q: "", kind: "all", month: currentMonth, section: "all" });
   const [adminFilters, setAdminFilters] = useState({ q: "", kind: "all", status: "all", userId: "all" });
   const [quickExpenseOpen, setQuickExpenseOpen] = useState(false);
+  const [recordEditorOpen, setRecordEditorOpen] = useState(false);
+  const [recordToDelete, setRecordToDelete] = useState<RecordItem | null>(null);
   const [pdfExportOpen, setPdfExportOpen] = useState(false);
   const [donationToRemove, setDonationToRemove] = useState<DonationPlan | null>(null);
   const [debtToRemove, setDebtToRemove] = useState<DebtItem | null>(null);
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
   const [editingDebtId, setEditingDebtId] = useState<string | null>(null);
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+  const [lockedRecordId, setLockedRecordId] = useState<string | null>(null);
   const [adminUserDrafts, setAdminUserDrafts] = useState<Record<string, AdminUserDraft>>({});
-  const [newSectionName, setNewSectionName] = useState("");
-  const [customSections, setCustomSections] = useState<string[]>([]);
   const [pdfExportDraft, setPdfExportDraft] = useState<PdfExportDraft>({
     startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10),
     endDate: new Date().toISOString().slice(0, 10),
@@ -805,9 +1173,11 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
   });
   const [debtDraft, setDebtDraft] = useState<DebtDraft>(createEmptyDebtDraft);
   const [transactionDraft, setTransactionDraft] = useState<TransactionDraft>(() => createEmptyTransactionDraft());
+  const [recordDraft, setRecordDraft] = useState<RecordDraft>(createEmptyRecordDraft);
   const [donationDraft, setDonationDraft] = useState<DonationDraft>({ title: "", amount: "", status: "pending", initiatedAt: "2026-04-06T00:00:00.000Z", completedAt: null });
 
   const summary = useQuery({ queryKey: ["summary"], queryFn: api.summary });
+  const records = useQuery({ queryKey: ["records"], queryFn: api.records });
   const transactions = useQuery({ queryKey: ["transactions", filters], queryFn: () => api.transactions(new URLSearchParams(filters)) });
   const debts = useQuery({ queryKey: ["debts"], queryFn: api.debts });
   const donations = useQuery({ queryKey: ["donations"], queryFn: api.donations });
@@ -850,6 +1220,9 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
 
   const invalidate = () => {
     queryClientLocal.invalidateQueries({ queryKey: ["summary"] });
+    queryClientLocal.invalidateQueries({ queryKey: ["records"] });
+    queryClientLocal.invalidateQueries({ queryKey: ["record"] });
+    queryClientLocal.invalidateQueries({ queryKey: ["record-transactions"] });
     queryClientLocal.invalidateQueries({ queryKey: ["transactions"] });
     queryClientLocal.invalidateQueries({ queryKey: ["debts"] });
     queryClientLocal.invalidateQueries({ queryKey: ["donations"] });
@@ -860,13 +1233,55 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
     queryClientLocal.invalidateQueries({ queryKey: ["admin-donations"] });
   };
 
+  const createRecord = useMutation({
+    mutationFn: (payload: RecordDraft) => api.createRecord(payload),
+    onSuccess: ({ record }) => {
+      setRecordEditorOpen(false);
+      setEditingRecordId(null);
+      setRecordDraft(createEmptyRecordDraft());
+      toast.success("Record created successfully.");
+      invalidate();
+      navigate(`/records/${record._id}`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const updateRecord = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: RecordDraft }) => api.updateRecord(id, payload),
+    onSuccess: ({ record }) => {
+      setRecordEditorOpen(false);
+      setEditingRecordId(null);
+      setRecordDraft(createEmptyRecordDraft());
+      toast.success("Record updated successfully.");
+      invalidate();
+      navigate(`/records/${record._id}`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const deleteRecord = useMutation({
+    mutationFn: api.deleteRecord,
+    onSuccess: async () => {
+      setRecordToDelete(null);
+      toast.success("Record deleted successfully.");
+      invalidate();
+      if (location.pathname.startsWith("/records/")) {
+        navigate("/records");
+      }
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
   const addTransaction = useMutation({
-    mutationFn: (payload: TransactionDraft) => api.addTransaction({ ...payload, amount: Number(payload.amount), section: normalizeSection(payload.section) }),
+    mutationFn: (payload: TransactionDraft) =>
+      api.addTransaction({
+        ...payload,
+        amount: Number(payload.amount),
+        section: normalizeSection(payload.section),
+        recordId: payload.recordId ?? null,
+      }),
     onSuccess: () => {
       setQuickExpenseOpen(false);
+      setLockedRecordId(null);
       setEditingTransactionId(null);
       setTransactionDraft(createEmptyTransactionDraft());
-      setNewSectionName("");
       toast.success("Transaction added successfully.");
       invalidate();
     },
@@ -874,12 +1289,17 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
   });
   const updateTransaction = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: TransactionDraft }) =>
-      api.updateTransaction(id, { ...payload, amount: Number(payload.amount), section: normalizeSection(payload.section) }),
+      api.updateTransaction(id, {
+        ...payload,
+        amount: Number(payload.amount),
+        section: normalizeSection(payload.section),
+        recordId: payload.recordId ?? null,
+      }),
     onSuccess: () => {
       setQuickExpenseOpen(false);
+      setLockedRecordId(null);
       setEditingTransactionId(null);
       setTransactionDraft(createEmptyTransactionDraft());
-      setNewSectionName("");
       toast.success("Transaction updated successfully.");
       invalidate();
     },
@@ -1062,72 +1482,20 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
         throw new Error("No transactions found for this date range and selected sections.");
       }
 
-      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
-        import("jspdf"),
-        import("jspdf-autotable"),
-      ]);
-
-      const doc = new jsPDF();
-      const totalIncome = rows.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0);
-      const totalExpense = rows.filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.amount, 0);
       const dashboardBalance = summary.data?.totals?.totalSavings ?? 0;
       const selectedSectionLabel = payload.sections.length ? payload.sections.join(", ") : "all sections";
-
-      doc.setFontSize(18);
-      doc.text("Transaction Report", 14, 18);
-      doc.setFontSize(10);
-      doc.text(`Sections: ${selectedSectionLabel}`, 14, 28);
-      doc.text(`Date range: ${payload.startDate} to ${payload.endDate}`, 14, 34);
-      doc.text(`Income: ${formatCurrency(totalIncome)}`, 14, 44);
-      doc.text(`Expense: ${formatCurrency(totalExpense)}`, 78, 44);
-      doc.text(`Balance: ${formatCurrency(dashboardBalance)}`, 145, 44);
-
-      autoTable(doc, {
-        startY: 52,
-        head: [["Date", "Title", "Section", "Type", "Amount"]],
-        body: rows.map((row) => [
-          formatCalendarDate(row.occurredAt),
-          row.title,
-          row.section,
-          row.kind,
-          formatCurrency(row.amount),
-        ]),
-        styles: { fontSize: 9, cellPadding: 3 },
-        headStyles: { fillColor: [15, 23, 42] },
-        didParseCell: (hookData) => {
-          if (hookData.section !== "body") {
-            return;
-          }
-
-          const row = rows[hookData.row.index];
-          if (!row) {
-            return;
-          }
-
-          if (hookData.column.index === 4) {
-            if (row.kind === "income") {
-              hookData.cell.styles.textColor = [5, 150, 105];
-              hookData.cell.styles.fontStyle = "bold";
-            } else if (row.kind === "expense") {
-              hookData.cell.styles.textColor = [225, 29, 72];
-              hookData.cell.styles.fontStyle = "bold";
-            }
-          }
-
-          if (hookData.column.index === 5) {
-            if (row.kind === "income") {
-              hookData.cell.styles.textColor = [5, 150, 105];
-              hookData.cell.styles.fontStyle = "bold";
-            } else if (row.kind === "expense") {
-              hookData.cell.styles.textColor = [225, 29, 72];
-              hookData.cell.styles.fontStyle = "bold";
-            }
-          }
-        },
-      });
-
       const fileSectionLabel = payload.sections.length ? payload.sections.join("-") : "all-sections";
-      doc.save(`transactions-${fileSectionLabel}-${payload.startDate}-to-${payload.endDate}.pdf`);
+
+      await downloadTransactionsPdf({
+        rows,
+        title: "Transaction Report",
+        subtitleLines: [
+          `Sections: ${selectedSectionLabel}`,
+          `Date range: ${payload.startDate} to ${payload.endDate}`,
+        ],
+        balanceAmount: dashboardBalance,
+        filename: `transactions-${sanitizeFilePart(fileSectionLabel)}-${payload.startDate}-to-${payload.endDate}.pdf`,
+      });
     },
     onSuccess: () => {
       setPdfExportOpen(false);
@@ -1147,6 +1515,8 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
 
   const debtItems = debts.data?.debts ?? [];
   const donationItems = donations.data?.donations ?? [];
+  const recordRows = records.data?.records ?? [];
+  const selectedTransactionRecord = recordRows.find((item) => item._id === transactionDraft.recordId) ?? null;
   const adminUserRows = adminUsers.data?.users ?? [];
   const adminTransactionRows = adminTransactions.data?.transactions ?? [];
   const adminDonationRows = adminDonations.data?.donations ?? [];
@@ -1189,47 +1559,10 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
 
     setDonationToRemove(donation);
   };
-  const monthLabel = useMemo(
-    () =>
-      new Intl.DateTimeFormat("en-US", {
-        month: "long",
-        year: "numeric",
-      }).format(new Date(`${filters.month}-01T00:00:00`)),
-    [filters.month],
-  );
-  const sectionSummary = useMemo(() => {
-    const bucket = new Map<string, { section: string; income: number; expense: number; balance: number; entries: number }>();
-    for (const item of transactions.data ?? []) {
-      const key = item.section || "self";
-      const current = bucket.get(key) ?? { section: key, income: 0, expense: 0, balance: 0, entries: 0 };
-      if (item.kind === "income") {
-        current.income += item.amount;
-      }
-      if (item.kind === "expense") {
-        current.expense += item.amount;
-      }
-      current.balance = current.income - current.expense;
-      current.entries += 1;
-      bucket.set(key, current);
-    }
-
-    return [...bucket.values()].sort((left, right) => right.entries - left.entries || left.section.localeCompare(right.section));
-  }, [transactions.data]);
-  const totalMonthIncome = useMemo(
-    () => (transactions.data ?? []).filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0),
-    [transactions.data],
-  );
-  const totalMonthExpense = useMemo(
-    () => (transactions.data ?? []).filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.amount, 0),
-    [transactions.data],
-  );
   const availableSections = useMemo(() => {
     const sections = new Set<string>(["self", "family"]);
     for (const item of transactions.data ?? []) {
       sections.add(normalizeSection(item.section || "self"));
-    }
-    for (const section of customSections) {
-      sections.add(normalizeSection(section));
     }
     sections.add(normalizeSection(transactionDraft.section || "family"));
 
@@ -1249,30 +1582,10 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
 
       return left.localeCompare(right);
     });
-  }, [customSections, transactionDraft.section, transactions.data]);
+  }, [transactionDraft.section, transactions.data]);
   const areAllPdfSectionsSelected =
     availableSections.length > 0 &&
     availableSections.every((section) => pdfExportDraft.sections.includes(section));
-  const addSectionOption = () => {
-    const typedValue = newSectionName.trim();
-    if (!typedValue) {
-      toast.error("Enter a section name first.");
-      return;
-    }
-
-    const normalized = normalizeSection(typedValue);
-    if (availableSections.includes(normalized)) {
-      setTransactionDraft((current) => ({ ...current, section: normalized }));
-      setNewSectionName("");
-      toast.error("This section already exists.");
-      return;
-    }
-
-    setCustomSections((current) => [...current, normalized]);
-    setTransactionDraft((current) => ({ ...current, section: normalized }));
-    setNewSectionName("");
-    toast.success("Section added.");
-  };
   const togglePdfSection = (section: string) => {
     setPdfExportDraft((current) => ({
       ...current,
@@ -1281,29 +1594,71 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
         : [...current.sections, section],
     }));
   };
-  const openQuickTransaction = (kind: TransactionKind) => {
+  const openCreateRecordModal = () => {
+    setEditingRecordId(null);
+    setRecordDraft(createEmptyRecordDraft());
+    setRecordEditorOpen(true);
+  };
+  const openEditRecordModal = (record: Pick<RecordItem, "_id" | "name" | "note" | "color">) => {
+    setEditingRecordId(record._id);
+    setRecordDraft({
+      name: record.name,
+      note: record.note,
+      color: record.color,
+    });
+    setRecordEditorOpen(true);
+  };
+  const submitRecord = () => {
+    if (!recordDraft.name.trim()) {
+      toast.error("Record name is required.");
+      return;
+    }
+
+    if (editingRecordId) {
+      updateRecord.mutate({ id: editingRecordId, payload: recordDraft });
+      return;
+    }
+
+    createRecord.mutate(recordDraft);
+  };
+  const openQuickTransaction = (kind: TransactionKind, recordId?: string) => {
+    if (!recordRows.length) {
+      toast.error("Create a record before adding income or expense.");
+      openCreateRecordModal();
+      return;
+    }
+
+    const selectedRecord = recordId ? recordRows.find((item) => item._id === recordId) : recordRows[0];
+    const draft = createEmptyTransactionDraft(kind);
     setEditingTransactionId(null);
-    setTransactionDraft(createEmptyTransactionDraft(kind));
+    setLockedRecordId(recordId ?? null);
+    setTransactionDraft({
+      ...draft,
+      recordId: selectedRecord?._id ?? null,
+      section: normalizeSection(selectedRecord?.name ?? "family"),
+    });
     setQuickExpenseOpen(true);
   };
   const openEditTransaction = (transaction: Transaction) => {
+    const selectedRecord = transaction.recordId ? recordRows.find((item) => item._id === transaction.recordId) : null;
     setEditingTransactionId(transaction._id);
+    setLockedRecordId(transaction.recordId ?? null);
     setTransactionDraft({
       title: transaction.title,
       amount: transaction.amount,
       category: transaction.category ?? "",
-      section: normalizeSection(transaction.section),
+      section: normalizeSection(selectedRecord?.name ?? transaction.section),
       kind: transaction.kind,
       occurredAt: transaction.occurredAt,
+      recordId: transaction.recordId ?? null,
     });
-    setNewSectionName("");
     setQuickExpenseOpen(true);
   };
   const closeTransactionModal = () => {
     setQuickExpenseOpen(false);
+    setLockedRecordId(null);
     setEditingTransactionId(null);
     setTransactionDraft(createEmptyTransactionDraft());
-    setNewSectionName("");
   };
   const handleAdminUserDraftChange = (userId: string, field: keyof AdminUserDraft, value: string) => {
     setAdminUserDrafts((current) => {
@@ -1409,7 +1764,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
   const deleteDebt = (id: string) => {
     deleteDebtMutation.mutate(id);
   };
-  const navItems = [{ to: "/", label: "Dashboard", icon: Landmark }, { to: "/transactions", label: "Transactions", icon: Wallet }, { to: "/debts", label: "Debts", icon: Target }, { to: "/donations", label: "Donations", icon: HeartHandshake }, ...(isAdmin ? [{ to: "/admin", label: "Admin", icon: Shield }] : [])];
+  const navItems = [{ to: "/", label: "Dashboard", icon: Landmark }, { to: "/records", label: "Records", icon: FolderKanban }, { to: "/debts", label: "Debts", icon: Target }, { to: "/donations", label: "Donations", icon: HeartHandshake }, ...(isAdmin ? [{ to: "/admin", label: "Admin", icon: Shield }] : [])];
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.18),_transparent_35%),linear-gradient(135deg,#f8fafc,#dbeafe_45%,#f8fafc)] text-slate-900 transition-colors dark:bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.12),_transparent_35%),linear-gradient(135deg,#020617,#0f172a_45%,#020617)] dark:text-white">
@@ -1512,88 +1867,20 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
             <motion.div key={location.pathname} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.22 }}>
               <Routes location={location}>
                 <Route path="/" element={<DashboardView summary={summary.data} />} />
-                <Route path="/transactions" element={
-                  <div className="space-y-6">
-                    <GlassCard className="overflow-hidden">
-                      <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900 dark:text-white">Income and Expense Planner</p>
-                          <p className="mt-1 text-sm text-slate-500">See everything for one month and break it into sections like self, family, or any custom section you create.</p>
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                          <input type="month" value={filters.month} onChange={(event) => setFilters((current) => ({ ...current, month: event.target.value }))} className="rounded-2xl border border-white/30 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70" />
-                          <select value={filters.section} onChange={(event) => setFilters((current) => ({ ...current, section: event.target.value }))} className="rounded-2xl border border-white/30 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70">
-                            <option value="all">All sections</option>
-                            {availableSections.map((section) => (
-                              <option key={section} value={section}>{section}</option>
-                            ))}
-                          </select>
-                          <select value={filters.kind} onChange={(event) => setFilters((current) => ({ ...current, kind: event.target.value }))} className="rounded-2xl border border-white/30 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70">
-                            <option value="all">Income and expense</option>
-                            <option value="income">Income only</option>
-                            <option value="expense">Expense only</option>
-                          </select>
-                          <input placeholder="Search title, category, or section" value={filters.q} onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} className="rounded-2xl border border-white/30 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/70" />
-                        </div>
-                      </div>
-                    </GlassCard>
-
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                      {[
-                        { label: `${monthLabel} income`, value: totalMonthIncome, icon: ArrowUpCircle, tone: "text-emerald-500" },
-                        { label: `${monthLabel} expense`, value: totalMonthExpense, icon: ArrowDownCircle, tone: "text-rose-500" },
-                        { label: "Balance", value: summary.data?.totals?.totalSavings ?? 0, icon: Bolt, tone: "text-amber-500" },
-                      ].map((item) => (
-                        <GlassCard key={item.label}>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm text-slate-500">{item.label}</p>
-                              <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white sm:text-3xl">{formatCurrency(item.value)}</p>
-                            </div>
-                            <item.icon className={cn("h-6 w-6", item.tone)} />
-                          </div>
-                        </GlassCard>
-                      ))}
-                    </div>
-
-                    <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-                      {sectionSummary.map((section) => (
-                        <GlassCard key={section.section}>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm text-slate-500">Section</p>
-                              <h3 className="mt-1 text-2xl font-semibold capitalize text-slate-900 dark:text-white">{section.section}</h3>
-                            </div>
-                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs uppercase tracking-[0.22em] text-slate-500 dark:bg-slate-800 dark:text-slate-300">{section.entries} entries</span>
-                          </div>
-                          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                            <div className="rounded-2xl bg-emerald-500/10 p-3">
-                              <p className="text-xs uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">Income</p>
-                              <p className="mt-2 font-semibold text-slate-900 dark:text-white">{formatCurrency(section.income)}</p>
-                            </div>
-                            <div className="rounded-2xl bg-rose-500/10 p-3">
-                              <p className="text-xs uppercase tracking-[0.2em] text-rose-700 dark:text-rose-300">Expense</p>
-                              <p className="mt-2 font-semibold text-slate-900 dark:text-white">{formatCurrency(section.expense)}</p>
-                            </div>
-                            <div className="rounded-2xl bg-cyan-500/10 p-3">
-                              <p className="text-xs uppercase tracking-[0.2em] text-cyan-700 dark:text-cyan-300">Balance</p>
-                              <p className="mt-2 font-semibold text-slate-900 dark:text-white">{formatCurrency(section.balance)}</p>
-                            </div>
-                          </div>
-                        </GlassCard>
-                      ))}
-                    </div>
-
-                    <TransactionTable
-                      rows={transactions.data ?? []}
-                      loading={transactions.isLoading}
-                      onDeleteSelected={(ids) => ids.length && bulkDelete.mutate(ids)}
+                <Route path="/transactions" element={<Navigate to="/records" replace />} />
+                <Route path="/records" element={<RecordsGalleryView records={recordRows} loading={records.isLoading} onCreateRecord={openCreateRecordModal} />} />
+                <Route
+                  path="/records/:recordId"
+                  element={
+                    <RecordDetailView
+                      onCreateTransaction={openQuickTransaction}
+                      onEditRecord={openEditRecordModal}
+                      onDeleteRecord={(record) => setRecordToDelete(record)}
                       onEditTransaction={openEditTransaction}
-                      onRemoveDonation={openRemoveDonationModal}
-                      onExportPdf={() => setPdfExportOpen(true)}
+                      onDeleteSelected={(ids) => ids.length && bulkDelete.mutate(ids)}
                     />
-                  </div>
-                } />
+                  }
+                />
                 <Route path="/debts" element={
                   <DebtView
                     debts={debtItems}
@@ -1839,6 +2126,10 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
               className="mt-4 space-y-3"
               onSubmit={(event) => {
                 event.preventDefault();
+                if (!transactionDraft.recordId) {
+                  toast.error("Choose a record first.");
+                  return;
+                }
                 if (editingTransactionId) {
                   updateTransaction.mutate({ id: editingTransactionId, payload: transactionDraft });
                   return;
@@ -1851,46 +2142,69 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
               <input type="number" value={transactionDraft.amount} onChange={(event) => setTransactionDraft((current) => ({ ...current, amount: event.target.value === "" ? "" : Number(event.target.value) }))} placeholder="Amount in BDT" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <input value={transactionDraft.category ?? ""} onChange={(event) => setTransactionDraft((current) => ({ ...current, category: event.target.value }))} placeholder="Category (optional)" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <div className="space-y-2">
-                <label className="block text-sm text-slate-500">Section</label>
+                <label className="block text-sm text-slate-500">Record</label>
                 <select
-                  value={normalizeSection(transactionDraft.section)}
-                  onChange={(event) => setTransactionDraft((current) => ({ ...current, section: normalizeSection(event.target.value) }))}
+                  value={transactionDraft.recordId ?? ""}
+                  onChange={(event) => {
+                    const record = recordRows.find((item) => item._id === event.target.value) ?? null;
+                    setTransactionDraft((current) => ({
+                      ...current,
+                      recordId: record?._id ?? null,
+                      section: normalizeSection(record?.name ?? current.section),
+                    }));
+                  }}
+                  disabled={Boolean(lockedRecordId)}
                   className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80"
                 >
-                  {availableSections.map((section) => (
-                    <option key={section} value={section}>{section}</option>
+                  <option value="">Choose a record</option>
+                  {recordRows.map((record) => (
+                    <option key={record._id} value={record._id}>{record.name}</option>
                   ))}
                 </select>
-                <div className="flex gap-2">
-                  <input
-                    value={newSectionName}
-                    onChange={(event) => setNewSectionName(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        addSectionOption();
-                      }
-                    }}
-                    placeholder="Add a new section"
-                    className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80"
-                  />
-                  <button
-                    type="button"
-                    onClick={addSectionOption}
-                    className="rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 dark:border-slate-600 dark:text-slate-200"
-                  >
-                    Add section
-                  </button>
-                </div>
+                <p className="text-xs text-slate-500">
+                  {selectedTransactionRecord
+                    ? `This entry will stay dedicated to ${selectedTransactionRecord.name}.`
+                    : "Pick the record that should own this income or expense entry."}
+                </p>
               </div>
               <select value={transactionDraft.kind} onChange={(event) => setTransactionDraft((current) => ({ ...current, kind: event.target.value as TransactionKind }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80">
                 <option value="expense">Expense</option>
                 <option value="income">Income</option>
-                <option value="donation">Donation</option>
               </select>
               <input type="date" value={transactionDraft.occurredAt.slice(0, 10)} onChange={(event) => setTransactionDraft((current) => ({ ...current, occurredAt: new Date(event.target.value).toISOString() }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <button className="w-full rounded-2xl bg-slate-950 px-4 py-3 text-white dark:bg-cyan-400 dark:text-slate-950">
                 {editingTransactionId ? "Update transaction" : "Save transaction"}
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {recordEditorOpen ? (
+        <div className="fixed inset-0 z-40 overflow-y-auto bg-slate-950/45 p-3 backdrop-blur-sm sm:p-4" onClick={() => { setRecordEditorOpen(false); setEditingRecordId(null); setRecordDraft(createEmptyRecordDraft()); }}>
+          <div className="mx-auto my-4 max-w-lg rounded-[32px] border border-white/30 bg-white/80 p-5 shadow-2xl dark:border-white/10 dark:bg-slate-900/90 sm:my-12 sm:p-6" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-semibold">{editingRecordId ? "Edit record" : "New record"}</h3>
+              <button type="button" onClick={() => { setRecordEditorOpen(false); setEditingRecordId(null); setRecordDraft(createEmptyRecordDraft()); }} className="text-sm text-slate-500">Close</button>
+            </div>
+            <form
+              className="mt-4 space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                submitRecord();
+              }}
+            >
+              <input value={recordDraft.name} onChange={(event) => setRecordDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Record name" className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
+              <textarea value={recordDraft.note} onChange={(event) => setRecordDraft((current) => ({ ...current, note: event.target.value }))} placeholder="Short note (optional)" rows={4} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
+              <div className="space-y-2">
+                <label className="block text-sm text-slate-500">Accent color</label>
+                <div className="flex items-center gap-3">
+                  <input type="color" value={recordDraft.color} onChange={(event) => setRecordDraft((current) => ({ ...current, color: event.target.value }))} className="h-12 w-16 rounded-xl border border-slate-200 bg-white/80 p-1 dark:border-slate-700 dark:bg-slate-950/80" />
+                  <input value={recordDraft.color} onChange={(event) => setRecordDraft((current) => ({ ...current, color: event.target.value }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
+                </div>
+              </div>
+              <button className="w-full rounded-2xl bg-slate-950 px-4 py-3 text-white dark:bg-cyan-400 dark:text-slate-950">
+                {editingRecordId ? "Update record" : "Create record"}
               </button>
             </form>
           </div>
@@ -2025,6 +2339,27 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
               </button>
               <button type="button" onClick={() => deleteDebt(debtToRemove._id)} className="w-full rounded-full bg-rose-500 px-4 py-2 text-sm font-medium text-white sm:w-auto">
                 Remove loan
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {recordToDelete ? (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/45 p-3 backdrop-blur-sm sm:p-4" onClick={() => setRecordToDelete(null)}>
+          <div className="mx-auto my-4 max-w-md rounded-[32px] border border-white/30 bg-white/90 p-5 shadow-2xl dark:border-white/10 dark:bg-slate-900/95 sm:my-12 sm:p-6" onClick={(event) => event.stopPropagation()}>
+            <p className="text-sm uppercase tracking-[0.24em] text-rose-500">Confirm removal</p>
+            <h3 className="mt-3 text-xl font-semibold text-slate-900 dark:text-white sm:text-2xl">Delete this record?</h3>
+            <p className="mt-3 text-sm text-slate-500">
+              <span className="font-medium text-slate-900 dark:text-white">{recordToDelete.name}</span>
+              {" "}can only be deleted when it has no income or expense entries left.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:flex-wrap sm:justify-end">
+              <button type="button" onClick={() => setRecordToDelete(null)} className="w-full rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200 sm:w-auto">
+                Cancel
+              </button>
+              <button type="button" onClick={() => deleteRecord.mutate(recordToDelete._id)} className="w-full rounded-full bg-rose-500 px-4 py-2 text-sm font-medium text-white sm:w-auto">
+                {deleteRecord.isPending ? "Deleting..." : "Delete record"}
               </button>
             </div>
           </div>
