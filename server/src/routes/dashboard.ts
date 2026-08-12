@@ -22,6 +22,7 @@ dashboardRouter.get("/summary", async (req: AuthedRequest, res) => {
       totalIncome: number;
       totalExpense: number;
       totalDonation: number;
+      totalUnrealizedExpense: number;
       totalSavings: number;
     }>([
       { $match: { userId, occurredAt: { $gte: windowStart } } },
@@ -35,7 +36,20 @@ dashboardRouter.get("/summary", async (req: AuthedRequest, res) => {
           },
           totalExpense: {
             $sum: {
-              $cond: [{ $eq: ["$kind", "expense"] }, "$amount", 0],
+              $cond: [
+                { $and: [{ $eq: ["$kind", "expense"] }, { $ne: [{ $ifNull: ["$expenseStatus", "realized"] }, "unrealized"] }] },
+                "$amount",
+                0,
+              ],
+            },
+          },
+          totalUnrealizedExpense: {
+            $sum: {
+              $cond: [
+                { $and: [{ $eq: ["$kind", "expense"] }, { $eq: [{ $ifNull: ["$expenseStatus", "realized"] }, "unrealized"] }] },
+                "$amount",
+                0,
+              ],
             },
           },
           totalDonation: {
@@ -51,12 +65,13 @@ dashboardRouter.get("/summary", async (req: AuthedRequest, res) => {
           totalIncome: 1,
           totalExpense: 1,
           totalDonation: 1,
+          totalUnrealizedExpense: 1,
           totalSavings: { $subtract: ["$totalIncome", { $add: ["$totalExpense", "$totalDonation"] }] },
         },
       },
-    ]).then((rows) => rows[0] ?? { totalIncome: 0, totalExpense: 0, totalDonation: 0, totalSavings: 0 }),
+    ]).then((rows) => rows[0] ?? { totalIncome: 0, totalExpense: 0, totalDonation: 0, totalUnrealizedExpense: 0, totalSavings: 0 }),
     TransactionModel.aggregate([
-      { $match: { userId, occurredAt: { $gte: windowStart } } },
+      { $match: { userId, occurredAt: { $gte: windowStart }, $or: [{ kind: { $ne: "expense" } }, { expenseStatus: { $ne: "unrealized" } }, { expenseStatus: { $exists: false } }] } },
       {
         $group: {
           _id: {
@@ -139,6 +154,7 @@ dashboardRouter.get("/summary", async (req: AuthedRequest, res) => {
       ...transaction,
       _id: String(transaction._id),
       category: transaction.category ?? "",
+      expenseStatus: transaction.expenseStatus ?? "realized",
       section: transaction.section ?? "self",
       recordId: transaction.recordId ? String(transaction.recordId) : null,
     })),

@@ -72,6 +72,7 @@ transactionsRouter.get("/", async (req: AuthedRequest, res) => {
       ...transaction,
       _id: String(transaction._id),
       category: transaction.category ?? "",
+      expenseStatus: transaction.expenseStatus ?? "realized",
       section: transaction.section ?? "self",
       recordId: transaction.recordId ? String(transaction.recordId) : null,
     })),
@@ -83,6 +84,7 @@ transactionsRouter.post("/", async (req: AuthedRequest, res) => {
   await ensureRecordsBackfilledForUser(userId);
   const kind = req.body.kind;
   const recordId = req.body.recordId;
+  const expenseStatus = kind === "expense" && req.body.expenseStatus === "unrealized" ? "unrealized" : "realized";
 
   if ((kind === "income" || kind === "expense") && (!recordId || !mongoose.Types.ObjectId.isValid(recordId))) {
     res.status(400).json({ message: "A record is required for income and expense entries." });
@@ -100,6 +102,7 @@ transactionsRouter.post("/", async (req: AuthedRequest, res) => {
   const transaction = await TransactionModel.create({
     ...req.body,
     section: req.body.section ?? "self",
+    expenseStatus,
     recordId: recordId && mongoose.Types.ObjectId.isValid(recordId) ? new mongoose.Types.ObjectId(recordId) : null,
     userId,
   });
@@ -109,6 +112,7 @@ transactionsRouter.post("/", async (req: AuthedRequest, res) => {
     ...transaction.toObject(),
     _id: String(transaction._id),
     category: transaction.category ?? "",
+    expenseStatus: transaction.expenseStatus ?? "realized",
     section: transaction.section ?? "self",
     recordId: transaction.recordId ? String(transaction.recordId) : null,
   });
@@ -120,6 +124,7 @@ transactionsRouter.patch("/:id", async (req: AuthedRequest, res) => {
   await ensureRecordsBackfilledForUser(userId);
   const kind = req.body.kind;
   const recordId = req.body.recordId;
+  const expenseStatus = kind === "expense" && req.body.expenseStatus === "unrealized" ? "unrealized" : "realized";
 
   if ((kind === "income" || kind === "expense") && (!recordId || !mongoose.Types.ObjectId.isValid(recordId))) {
     res.status(400).json({ message: "A record is required for income and expense entries." });
@@ -147,6 +152,7 @@ transactionsRouter.patch("/:id", async (req: AuthedRequest, res) => {
         section: req.body.section ?? "self",
         recordId: recordId && mongoose.Types.ObjectId.isValid(recordId) ? new mongoose.Types.ObjectId(recordId) : null,
         kind: req.body.kind,
+        expenseStatus,
         occurredAt: req.body.occurredAt,
       },
     },
@@ -164,6 +170,7 @@ transactionsRouter.patch("/:id", async (req: AuthedRequest, res) => {
     ...transaction,
     _id: String(transaction._id),
     category: transaction.category ?? "",
+    expenseStatus: transaction.expenseStatus ?? "realized",
     section: transaction.section ?? "self",
     recordId: transaction.recordId ? String(transaction.recordId) : null,
   });

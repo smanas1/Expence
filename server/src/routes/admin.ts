@@ -104,6 +104,7 @@ adminRouter.get("/transactions", async (req, res) => {
       section: transaction.section ?? "self",
       recordId: transaction.recordId ? String(transaction.recordId) : null,
       kind: transaction.kind,
+      expenseStatus: transaction.expenseStatus ?? "realized",
       occurredAt:
         transaction.occurredAt instanceof Date
           ? transaction.occurredAt.toISOString()

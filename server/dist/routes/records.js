@@ -38,7 +38,7 @@ recordsRouter.get("/", async (req, res) => {
                             },
                             totalExpense: {
                                 $sum: {
-                                    $cond: [{ $eq: ["$kind", "expense"] }, "$amount", 0],
+                                    $cond: [{ $and: [{ $eq: ["$kind", "expense"] }, { $ne: [{ $ifNull: ["$expenseStatus", "realized"] }, "unrealized"] }] }, "$amount", 0],
                                 },
                             },
                             entryCount: { $sum: 1 },
@@ -124,7 +124,7 @@ recordsRouter.get("/:id", async (req, res) => {
                                 },
                                 totalExpense: {
                                     $sum: {
-                                        $cond: [{ $eq: ["$kind", "expense"] }, "$amount", 0],
+                                        $cond: [{ $and: [{ $eq: ["$kind", "expense"] }, { $ne: [{ $ifNull: ["$expenseStatus", "realized"] }, "unrealized"] }] }, "$amount", 0],
                                     },
                                 },
                             },
@@ -141,7 +141,7 @@ recordsRouter.get("/:id", async (req, res) => {
                                 },
                                 expense: {
                                     $sum: {
-                                        $cond: [{ $eq: ["$kind", "expense"] }, "$amount", 0],
+                                        $cond: [{ $and: [{ $eq: ["$kind", "expense"] }, { $ne: [{ $ifNull: ["$expenseStatus", "realized"] }, "unrealized"] }] }, "$amount", 0],
                                     },
                                 },
                                 total: { $sum: "$amount" },
@@ -174,6 +174,7 @@ recordsRouter.get("/:id", async (req, res) => {
                 category: transaction.category ?? "",
                 section: transaction.section ?? "self",
                 kind: transaction.kind,
+                expenseStatus: transaction.expenseStatus ?? "realized",
                 occurredAt: transaction.occurredAt instanceof Date ? transaction.occurredAt.toISOString() : new Date(transaction.occurredAt).toISOString(),
                 recordId: transaction.recordId ? String(transaction.recordId) : null,
             })),

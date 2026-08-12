@@ -1,0 +1,237 @@
+{
+  ".vscode/mcp.json": {
+    "mtime": 1786567774.315622,
+    "ast_hash": "7ecb6ce621fca3fb87b137eff6f25dc2",
+    "semantic_hash": "7ecb6ce621fca3fb87b137eff6f25dc2"
+  },
+  "api/[...route].ts": {
+    "mtime": 1786567774.315622,
+    "ast_hash": "48bf6404266ead87e55da6f362f54be0",
+    "semantic_hash": "48bf6404266ead87e55da6f362f54be0"
+  },
+  "client/eslint.config.js": {
+    "mtime": 1786567774.3177986,
+    "ast_hash": "a8c28972fc296a62aa788475309107db",
+    "semantic_hash": "a8c28972fc296a62aa788475309107db"
+  },
+  "client/package.json": {
+    "mtime": 1786567774.3187973,
+    "ast_hash": "0ac093b1ce92678839d391f47e3740b8",
+    "semantic_hash": "0ac093b1ce92678839d391f47e3740b8"
+  },
+  "client/src/App.tsx": {
+    "mtime": 1786567774.3233314,
+    "ast_hash": "96cb9a1146832d9f9cf19856cd6b7e83",
+    "semantic_hash": "96cb9a1146832d9f9cf19856cd6b7e83"
+  },
+  "client/src/components/command-palette.tsx": {
+    "mtime": 1786567774.3263483,
+    "ast_hash": "dd131708b34ab5868304d01bf7176242",
+    "semantic_hash": "dd131708b34ab5868304d01bf7176242"
+  },
+  "client/src/components/transaction-table.tsx": {
+    "mtime": 1786567774.3263483,
+    "ast_hash": "aa6d6598de946c3f5e447248235924d5",
+    "semantic_hash": "aa6d6598de946c3f5e447248235924d5"
+  },
+  "client/src/lib/api.ts": {
+    "mtime": 1786567774.3273468,
+    "ast_hash": "6f2b77f668d437e20c70aec391c9bdb7",
+    "semantic_hash": "6f2b77f668d437e20c70aec391c9bdb7"
+  },
+  "client/src/lib/format.ts": {
+    "mtime": 1786567774.3283486,
+    "ast_hash": "6d7605627d5b70014d3e671bc37ef6d2",
+    "semantic_hash": "6d7605627d5b70014d3e671bc37ef6d2"
+  },
+  "client/src/lib/utils.ts": {
+    "mtime": 1786567774.3283486,
+    "ast_hash": "e3f848f1b39f863e6164cf58b5a8e752",
+    "semantic_hash": "e3f848f1b39f863e6164cf58b5a8e752"
+  },
+  "client/src/main.tsx": {
+    "mtime": 1786567774.3283486,
+    "ast_hash": "503acd43eea44caae446d671c54763cd",
+    "semantic_hash": "503acd43eea44caae446d671c54763cd"
+  },
+  "client/src/types.ts": {
+    "mtime": 1786567774.3293457,
+    "ast_hash": "b67806f50c3b59fbc082c4ba972c64de",
+    "semantic_hash": "b67806f50c3b59fbc082c4ba972c64de"
+  },
+  "client/tsconfig.app.json": {
+    "mtime": 1786567774.3293457,
+    "ast_hash": "bd6c9e3d2dfd6c60000538461da1e8bf",
+    "semantic_hash": "bd6c9e3d2dfd6c60000538461da1e8bf"
+  },
+  "client/tsconfig.json": {
+    "mtime": 1786567774.3303473,
+    "ast_hash": "852c3a5df14a4b43ac28e9554ebedf4a",
+    "semantic_hash": "852c3a5df14a4b43ac28e9554ebedf4a"
+  },
+  "client/tsconfig.node.json": {
+    "mtime": 1786567774.3303473,
+    "ast_hash": "c5c9cdf8e005158c0b05c527b5634360",
+    "semantic_hash": "c5c9cdf8e005158c0b05c527b5634360"
+  },
+  "client/vercel.json": {
+    "mtime": 1786567774.3303473,
+    "ast_hash": "0db7ccb3aff36e97aa469126e9e17f99",
+    "semantic_hash": "0db7ccb3aff36e97aa469126e9e17f99"
+  },
+  "client/vite.config.ts": {
+    "mtime": 1786567774.3316224,
+    "ast_hash": "51be0d0526969d92a8e068fcff120ca7",
+    "semantic_hash": "51be0d0526969d92a8e068fcff120ca7"
+  },
+  "package.json": {
+    "mtime": 1786567774.3316224,
+    "ast_hash": "fd061425f5ad36fff31bd0a58ffb0508",
+    "semantic_hash": "fd061425f5ad36fff31bd0a58ffb0508"
+  },
+  "server/api/[...route].ts": {
+    "mtime": 1786567774.3368545,
+    "ast_hash": "f0841b23d1f236b302d9f6bc31c68251",
+    "semantic_hash": "f0841b23d1f236b302d9f6bc31c68251"
+  },
+  "server/package.json": {
+    "mtime": 1786567774.3483837,
+    "ast_hash": "0f348e4d583c17d5c4069885c56f6799",
+    "semantic_hash": "0f348e4d583c17d5c4069885c56f6799"
+  },
+  "server/src/app.ts": {
+    "mtime": 1786567774.3509276,
+    "ast_hash": "bb10efbfc3f473c726e89c36e7cdc25f",
+    "semantic_hash": "bb10efbfc3f473c726e89c36e7cdc25f"
+  },
+  "server/src/bootstrap.ts": {
+    "mtime": 1786567774.3509276,
+    "ast_hash": "fc2778678f36fd3e7f1d6f3cbf2da7bd",
+    "semantic_hash": "fc2778678f36fd3e7f1d6f3cbf2da7bd"
+  },
+  "server/src/config.ts": {
+    "mtime": 1786567774.3519304,
+    "ast_hash": "7e4a33bc0f5e3e39f91f3a5984bbd43b",
+    "semantic_hash": "7e4a33bc0f5e3e39f91f3a5984bbd43b"
+  },
+  "server/src/index.ts": {
+    "mtime": 1786567774.3519304,
+    "ast_hash": "b5957844205e831fa1fa9dde9153cf01",
+    "semantic_hash": "b5957844205e831fa1fa9dde9153cf01"
+  },
+  "server/src/lib/auth.ts": {
+    "mtime": 1786567774.3529356,
+    "ast_hash": "65eeae3ecaafa5e346a33efaebfd1a12",
+    "semantic_hash": "65eeae3ecaafa5e346a33efaebfd1a12"
+  },
+  "server/src/lib/records.ts": {
+    "mtime": 1786567774.3529356,
+    "ast_hash": "7707fa1003decb742e14750db36cc5bc",
+    "semantic_hash": "7707fa1003decb742e14750db36cc5bc"
+  },
+  "server/src/lib/seed.ts": {
+    "mtime": 1786567774.3539338,
+    "ast_hash": "58137f011f458f752ec577509d38f366",
+    "semantic_hash": "58137f011f458f752ec577509d38f366"
+  },
+  "server/src/middleware/auth.ts": {
+    "mtime": 1786567774.3539338,
+    "ast_hash": "ad6551234a19c236f52a7ec657df81d0",
+    "semantic_hash": "ad6551234a19c236f52a7ec657df81d0"
+  },
+  "server/src/models/Budget.ts": {
+    "mtime": 1786567774.354935,
+    "ast_hash": "81a0f484b4e1e3e1d587c48dd20e0cf3",
+    "semantic_hash": "81a0f484b4e1e3e1d587c48dd20e0cf3"
+  },
+  "server/src/models/Debt.ts": {
+    "mtime": 1786567774.354935,
+    "ast_hash": "2982cb57239cb371a1b43eecf10c6ecd",
+    "semantic_hash": "2982cb57239cb371a1b43eecf10c6ecd"
+  },
+  "server/src/models/DonationPlan.ts": {
+    "mtime": 1786567774.355934,
+    "ast_hash": "b5b0044aa90b0616eb3670a9e5da8b88",
+    "semantic_hash": "b5b0044aa90b0616eb3670a9e5da8b88"
+  },
+  "server/src/models/Record.ts": {
+    "mtime": 1786567774.355934,
+    "ast_hash": "8e8f41b0abd0549f7b625b6864b94f59",
+    "semantic_hash": "8e8f41b0abd0549f7b625b6864b94f59"
+  },
+  "server/src/models/Transaction.ts": {
+    "mtime": 1786567774.355934,
+    "ast_hash": "0121c0eb9204e8393e4cae5203d16b06",
+    "semantic_hash": "0121c0eb9204e8393e4cae5203d16b06"
+  },
+  "server/src/models/User.ts": {
+    "mtime": 1786567774.357105,
+    "ast_hash": "f0ecc2940cb6c0c8ce497030065d4a2e",
+    "semantic_hash": "f0ecc2940cb6c0c8ce497030065d4a2e"
+  },
+  "server/src/models/UserTotals.ts": {
+    "mtime": 1786567774.357105,
+    "ast_hash": "317d8fe7b5927ddaf3c57ff2859fe658",
+    "semantic_hash": "317d8fe7b5927ddaf3c57ff2859fe658"
+  },
+  "server/src/routes/admin.ts": {
+    "mtime": 1786567774.3581057,
+    "ast_hash": "2da4a40581c98781f213f9c171972152",
+    "semantic_hash": "2da4a40581c98781f213f9c171972152"
+  },
+  "server/src/routes/auth.ts": {
+    "mtime": 1786567774.3581057,
+    "ast_hash": "76f09b84a48448d1c9da87089278b3b3",
+    "semantic_hash": "76f09b84a48448d1c9da87089278b3b3"
+  },
+  "server/src/routes/budgets.ts": {
+    "mtime": 1786567774.3590865,
+    "ast_hash": "de91f25e05ed6937c8ec7c9ad026d368",
+    "semantic_hash": "de91f25e05ed6937c8ec7c9ad026d368"
+  },
+  "server/src/routes/dashboard.ts": {
+    "mtime": 1786567774.360097,
+    "ast_hash": "9225284ffe23c95e49e2bfee0292b1ba",
+    "semantic_hash": "9225284ffe23c95e49e2bfee0292b1ba"
+  },
+  "server/src/routes/debts.ts": {
+    "mtime": 1786567774.3606057,
+    "ast_hash": "506c4a54ccc71cfa25ac523d5ce4f395",
+    "semantic_hash": "506c4a54ccc71cfa25ac523d5ce4f395"
+  },
+  "server/src/routes/donations.ts": {
+    "mtime": 1786567774.3606057,
+    "ast_hash": "edf732feaa73d6e107ba29d7f6ac0203",
+    "semantic_hash": "edf732feaa73d6e107ba29d7f6ac0203"
+  },
+  "server/src/routes/records.ts": {
+    "mtime": 1786567774.3616228,
+    "ast_hash": "3e0741c14e9ceab4afdbf8943f56e975",
+    "semantic_hash": "3e0741c14e9ceab4afdbf8943f56e975"
+  },
+  "server/src/routes/transactions.ts": {
+    "mtime": 1786567774.3616228,
+    "ast_hash": "336357de6147ba79285bb21c809014af",
+    "semantic_hash": "336357de6147ba79285bb21c809014af"
+  },
+  "server/src/types.ts": {
+    "mtime": 1786567774.362623,
+    "ast_hash": "569581d65ac9085e8f515b86aaa124c0",
+    "semantic_hash": "569581d65ac9085e8f515b86aaa124c0"
+  },
+  "server/src/vercel.ts": {
+    "mtime": 1786567774.362623,
+    "ast_hash": "e74abb8a2056bae09cdf97a489a2b9d4",
+    "semantic_hash": "e74abb8a2056bae09cdf97a489a2b9d4"
+  },
+  "server/tsconfig.json": {
+    "mtime": 1786567774.3636334,
+    "ast_hash": "aeb41d887b72e5c70d8788c36f67e697",
+    "semantic_hash": "aeb41d887b72e5c70d8788c36f67e697"
+  },
+  "server/vercel.json": {
+    "mtime": 1786567774.3636334,
+    "ast_hash": "0486601e32b28aaba2588406aaf47de9",
+    "semantic_hash": "0486601e32b28aaba2588406aaf47de9"
+  }
+}

@@ -16,6 +16,7 @@ const transactionSchema = new Schema(
       required: true,
       index: true,
     },
+    expenseStatus: { type: String, enum: ["realized", "unrealized"], default: "realized", index: true },
     occurredAt: { type: Date, required: true, index: true },
   },
   { timestamps: true },
@@ -26,6 +27,7 @@ export async function recomputeUserTotals(userId: mongoose.Types.ObjectId) {
     totalIncome: number;
     totalExpense: number;
     totalDonation: number;
+    totalUnrealizedExpense: number;
     lastTransactionAt: Date | null;
   }>([
     { $match: { userId } },
@@ -39,7 +41,20 @@ export async function recomputeUserTotals(userId: mongoose.Types.ObjectId) {
         },
         totalExpense: {
           $sum: {
-            $cond: [{ $eq: ["$kind", "expense"] }, "$amount", 0],
+            $cond: [
+              { $and: [{ $eq: ["$kind", "expense"] }, { $ne: [{ $ifNull: ["$expenseStatus", "realized"] }, "unrealized"] }] },
+              "$amount",
+              0,
+            ],
+          },
+        },
+        totalUnrealizedExpense: {
+          $sum: {
+            $cond: [
+              { $and: [{ $eq: ["$kind", "expense"] }, { $eq: [{ $ifNull: ["$expenseStatus", "realized"] }, "unrealized"] }] },
+              "$amount",
+              0,
+            ],
           },
         },
         totalDonation: {
@@ -55,6 +70,7 @@ export async function recomputeUserTotals(userId: mongoose.Types.ObjectId) {
   const totalIncome = totals?.totalIncome ?? 0;
   const totalExpense = totals?.totalExpense ?? 0;
   const totalDonation = totals?.totalDonation ?? 0;
+  const totalUnrealizedExpense = totals?.totalUnrealizedExpense ?? 0;
 
   await UserTotalsModel.findOneAndUpdate(
     { userId },
@@ -63,6 +79,7 @@ export async function recomputeUserTotals(userId: mongoose.Types.ObjectId) {
       totalIncome,
       totalExpense,
       totalDonation,
+      totalUnrealizedExpense,
       totalSavings: totalIncome - totalExpense - totalDonation,
       lastTransactionAt: totals?.lastTransactionAt ?? null,
     },

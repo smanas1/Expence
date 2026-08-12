@@ -11,7 +11,7 @@ import { TransactionTable } from "./components/transaction-table";
 import { api } from "./lib/api";
 import { formatCalendarDate, formatCurrency, formatRecentDate } from "./lib/format";
 import { cn } from "./lib/utils";
-import type { AdminDonation, AdminTransaction, AdminUser, AuthUser, DashboardSummary, DebtItem, DonationPlan, RecordItem, RecordListItem, RecordSummary, Transaction, TransactionKind } from "./types";
+import type { AdminDonation, AdminTransaction, AdminUser, AuthUser, DashboardSummary, DebtItem, DonationPlan, ExpenseStatus, RecordItem, RecordListItem, RecordSummary, Transaction, TransactionKind } from "./types";
 
 const queryClient = new QueryClient();
 type DonationDraft = { title: string; amount: number | ""; status: "pending" | "completed"; initiatedAt: string; completedAt: string | null };
@@ -60,7 +60,7 @@ async function downloadTransactionsPdf({
   ]);
 
   const totalIncome = rows.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0);
-  const totalExpense = rows.filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.amount, 0);
+  const totalExpense = rows.filter((item) => item.kind === "expense" && item.expenseStatus !== "unrealized").reduce((sum, item) => sum + item.amount, 0);
   const reportBalance = balanceAmount ?? totalIncome - totalExpense;
   const summaryStartY = 28 + subtitleLines.length * 6;
 
@@ -126,6 +126,7 @@ function createEmptyTransactionDraft(kind: TransactionKind = "expense"): Transac
     category: "",
     section: normalizeSection("family"),
     kind,
+    expenseStatus: "realized",
     occurredAt: new Date().toISOString(),
     recordId: null,
   };
@@ -253,7 +254,7 @@ function LoginGate({ children, ready, checkingSession, onAuthenticated }: { chil
   );
 }
 
-function DashboardView({ summary }: { summary?: DashboardSummary }) {
+function DashboardView({ summary, records }: { summary?: DashboardSummary; records: RecordListItem[] }) {
   const transactionsPerPage = 5;
   const [transactionPage, setTransactionPage] = useState(1);
   const chartData = useMemo(() => {
@@ -269,6 +270,12 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
   const totals = summary?.totals;
   const netPosition = (totals?.totalIncome ?? 0) - (totals?.totalExpense ?? 0) - (totals?.totalDonation ?? 0);
   const recentTransactions = summary?.recentTransactions ?? [];
+  const recordTotals = records.reduce((totals, record) => ({
+    income: totals.income + record.totalIncome,
+    expense: totals.expense + record.totalExpense,
+    balance: totals.balance + record.balance,
+  }), { income: 0, expense: 0, balance: 0 });
+  const recordBalanceData = [...records].sort((left, right) => right.balance - left.balance);
   const totalTransactionPages = Math.max(1, Math.ceil(recentTransactions.length / transactionsPerPage));
   const paginatedTransactions = recentTransactions.slice((transactionPage - 1) * transactionsPerPage, transactionPage * transactionsPerPage);
   const totalsChartData = [
@@ -286,10 +293,10 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: "Income", value: totals?.totalIncome ?? 0, icon: Landmark, tone: "text-emerald-500", surface: "bg-emerald-500/10", note: "Last 30 days" },
-          { label: "Expenses", value: totals?.totalExpense ?? 0, icon: Wallet, tone: "text-rose-500", surface: "bg-rose-500/10", note: "Last 30 days" },
+          { label: "Paid expenses", value: totals?.totalExpense ?? 0, icon: Wallet, tone: "text-rose-500", surface: "bg-rose-500/10", note: "Last 30 days" },
+          { label: "Planned expenses", value: totals?.totalUnrealizedExpense ?? 0, icon: Clock3, tone: "text-violet-500", surface: "bg-violet-500/10", note: "Not yet spent" },
           { label: "Balance", value: totals?.totalSavings ?? 0, icon: Bolt, tone: "text-amber-500", surface: "bg-amber-500/10", note: netPosition >= 0 ? "Last 30 days trend" : "Needs attention" },
-          { label: "Transactions", value: recentTransactions.length, icon: Clock3, tone: "text-cyan-500", surface: "bg-cyan-500/10", note: "Logged in last 30 days" },
-        ].map((item) => (
+                  ].map((item) => (
           <motion.div key={item.label} layout>
             <GlassCard className="border-slate-200/80 bg-white/80 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
               <div className="flex items-center justify-between">
@@ -371,6 +378,60 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
         </div>
       </div>
 
+      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+        <GlassCard className="border-slate-200/80 bg-white/85 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">All records overview</p>
+              <p className="text-sm text-slate-500">Lifetime totals across every record.</p>
+            </div>
+            <FolderKanban className="h-5 w-5 text-cyan-500" />
+          </div>
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-slate-100/80 p-4 dark:bg-slate-950/70">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Records</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{records.length}</p>
+            </div>
+            <div className="rounded-2xl bg-cyan-500/10 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-cyan-700 dark:text-cyan-300">Combined balance</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{formatCurrency(recordTotals.balance)}</p>
+            </div>
+            <div className="rounded-2xl bg-emerald-500/10 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">All income</p>
+              <p className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{formatCurrency(recordTotals.income)}</p>
+            </div>
+            <div className="rounded-2xl bg-rose-500/10 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-rose-700 dark:text-rose-300">Paid expenses</p>
+              <p className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{formatCurrency(recordTotals.expense)}</p>
+            </div>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="border-slate-200/80 bg-white/85 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">Record balances</p>
+              <p className="text-sm text-slate-500">Compare the current balance in each record.</p>
+            </div>
+            <Bolt className="h-5 w-5 text-amber-500" />
+          </div>
+          <div className="mt-4 space-y-3">
+            {recordBalanceData.length ? recordBalanceData.map((record) => (
+              <div key={record._id} className="grid gap-3 rounded-2xl bg-slate-50/90 p-4 dark:bg-slate-950/70 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: record.color }} />
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-slate-900 dark:text-white">{record.name}</p>
+                    <p className="text-xs text-slate-500">{record.entryCount} entries | Income {formatCurrency(record.totalIncome)} | Paid {formatCurrency(record.totalExpense)}</p>
+                  </div>
+                </div>
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Balance</p>
+                <p className={cn("font-semibold", record.balance >= 0 ? "text-emerald-600 dark:text-emerald-300" : "text-rose-600 dark:text-rose-300")}>{formatCurrency(record.balance)}</p>
+              </div>
+            )) : <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500 dark:border-slate-700">No records available yet.</div>}
+          </div>
+        </GlassCard>
+      </div>
       <GlassCard className="border-slate-200/80 bg-white/85 shadow-lg shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70">
         <div className="flex items-center justify-between">
           <div>
@@ -391,6 +452,7 @@ function DashboardView({ summary }: { summary?: DashboardSummary }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-medium text-slate-900 dark:text-white">{item.title}</p>
                   <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium uppercase tracking-[0.16em]", transactionTone(item.kind).badge)}>{item.kind}</span>
+                  {item.kind === "expense" ? <span className="rounded-full bg-violet-500/10 px-2.5 py-1 text-xs font-medium uppercase tracking-[0.16em] text-violet-700 dark:text-violet-300">{item.expenseStatus}</span> : null}
                 </div>
                 <p className="mt-1 text-sm text-slate-500">{formatCategoryLabel(item.category)} | {formatRecentDate(item.occurredAt)}</p>
               </div>
@@ -566,7 +628,8 @@ function RecordDetailView({
 
   const record = recordSummary.data?.record;
   const filteredIncome = (recordTransactions.data ?? []).filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0);
-  const filteredExpense = (recordTransactions.data ?? []).filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.amount, 0);
+  const filteredExpense = (recordTransactions.data ?? []).filter((item) => item.kind === "expense" && item.expenseStatus !== "unrealized").reduce((sum, item) => sum + item.amount, 0);
+  const filteredPlannedExpense = (recordTransactions.data ?? []).filter((item) => item.kind === "expense" && item.expenseStatus === "unrealized").reduce((sum, item) => sum + item.amount, 0);
 
   if (recordSummary.isLoading) {
     return <GlassCard className="h-64 animate-pulse bg-slate-100 dark:bg-slate-900/60"> </GlassCard>;
@@ -621,7 +684,7 @@ function RecordDetailView({
           { label: "All-time income", value: record.totalIncome, icon: ArrowUpCircle, tone: "text-emerald-500" },
           { label: "All-time expense", value: record.totalExpense, icon: ArrowDownCircle, tone: "text-rose-500" },
           { label: "All-time balance", value: record.balance, icon: Bolt, tone: "text-cyan-500" },
-          { label: "This month balance", value: filteredIncome - filteredExpense, icon: Wallet, tone: "text-amber-500" },
+          { label: "Selected month planned", value: filteredPlannedExpense, icon: Clock3, tone: "text-violet-500" },
         ].map((item) => (
           <GlassCard key={item.label}>
             <div className="flex items-center justify-between">
@@ -654,15 +717,15 @@ function RecordDetailView({
           </div>
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
             <div className="rounded-3xl bg-emerald-500/10 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">This month income</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">Selected month income</p>
               <p className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{formatCurrency(filteredIncome)}</p>
             </div>
             <div className="rounded-3xl bg-rose-500/10 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300">This month expense</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300">Selected month paid expense</p>
               <p className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{formatCurrency(filteredExpense)}</p>
             </div>
             <div className="rounded-3xl bg-cyan-500/10 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">This month balance</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">Selected month balance</p>
               <p className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{formatCurrency(filteredIncome - filteredExpense)}</p>
             </div>
           </div>
@@ -1649,6 +1712,7 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
       category: transaction.category ?? "",
       section: normalizeSection(selectedRecord?.name ?? transaction.section),
       kind: transaction.kind,
+      expenseStatus: transaction.expenseStatus,
       occurredAt: transaction.occurredAt,
       recordId: transaction.recordId ?? null,
     });
@@ -1789,14 +1853,14 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            {location.pathname !== "/" ? (<div className="mt-4 grid grid-cols-2 gap-3">
               <button type="button" onClick={() => openQuickTransaction("income")} className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
                 Add income
               </button>
               <button type="button" onClick={() => openQuickTransaction("expense")} className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-medium text-white dark:bg-cyan-400 dark:text-slate-950">
                 Add expense
               </button>
-            </div>
+            </div>) : null}
           </div>
 
           <button type="button" onClick={() => setPaletteOpen(true)} className="flex w-full items-center gap-3 rounded-[24px] border border-white/35 bg-white/65 px-4 py-3.5 text-sm text-slate-500 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/55 dark:text-slate-400">
@@ -1850,23 +1914,23 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
         <main className="space-y-5 pb-24 lg:space-y-6 lg:pb-0">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-sm uppercase tracking-[0.28em] text-cyan-600">April 2026</p>
+              <p className="text-sm uppercase tracking-[0.28em] text-cyan-600">{new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(new Date())}</p>
               <h2 className="mt-2 text-2xl font-semibold sm:text-3xl">Money, mission, and momentum</h2>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            {location.pathname !== "/" ? (<div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <button type="button" onClick={() => openQuickTransaction("income")} className="w-full rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300 sm:w-auto">
                 Add income
               </button>
               <button type="button" onClick={() => openQuickTransaction("expense")} className="w-full rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white dark:bg-cyan-400 dark:text-slate-950 sm:w-auto">
                 Add expense
               </button>
-            </div>
+            </div>) : null}
           </div>
 
           <AnimatePresence mode="wait" initial={false}>
             <motion.div key={location.pathname} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.22 }}>
               <Routes location={location}>
-                <Route path="/" element={<DashboardView summary={summary.data} />} />
+                <Route path="/" element={<DashboardView summary={summary.data} records={recordRows} />} />
                 <Route path="/transactions" element={<Navigate to="/records" replace />} />
                 <Route path="/records" element={<RecordsGalleryView records={recordRows} loading={records.isLoading} onCreateRecord={openCreateRecordModal} />} />
                 <Route
@@ -2171,6 +2235,15 @@ function AppShell({ onLogout, user }: { onLogout: () => void; user: AuthUser | n
                 <option value="expense">Expense</option>
                 <option value="income">Income</option>
               </select>
+              {transactionDraft.kind === "expense" ? (
+                <div className="space-y-2">
+                  <label className="block text-sm text-slate-500">Expense status</label>
+                  <select value={transactionDraft.expenseStatus} onChange={(event) => setTransactionDraft((current) => ({ ...current, expenseStatus: event.target.value as ExpenseStatus }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80">
+                    <option value="realized">Realized - money already spent</option>
+                    <option value="unrealized">Unrealized - budgeted, not yet spent</option>
+                  </select>
+                </div>
+              ) : null}
               <input type="date" value={transactionDraft.occurredAt.slice(0, 10)} onChange={(event) => setTransactionDraft((current) => ({ ...current, occurredAt: new Date(event.target.value).toISOString() }))} className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-950/80" />
               <button className="w-full rounded-2xl bg-slate-950 px-4 py-3 text-white dark:bg-cyan-400 dark:text-slate-950">
                 {editingTransactionId ? "Update transaction" : "Save transaction"}

@@ -6,6 +6,7 @@ const userTotalsSchema = new Schema(
     totalIncome: { type: Number, default: 0 },
     totalExpense: { type: Number, default: 0 },
     totalDonation: { type: Number, default: 0 },
+    totalUnrealizedExpense: { type: Number, default: 0 },
     totalSavings: { type: Number, default: 0 },
     lastTransactionAt: { type: Date, default: null },
   },

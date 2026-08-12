@@ -1,4 +1,5 @@
 export type TransactionKind = "income" | "expense" | "donation";
+export type ExpenseStatus = "realized" | "unrealized";
 export type UserRole = "user" | "admin";
 
 export interface AuthUser {
@@ -16,6 +17,7 @@ export interface Transaction {
   category?: string;
   section: string;
   kind: TransactionKind;
+  expenseStatus: ExpenseStatus;
   occurredAt: string;
   recordId?: string | null;
 }
@@ -101,6 +103,7 @@ export interface DashboardSummary {
     totalIncome: number;
     totalExpense: number;
     totalDonation: number;
+    totalUnrealizedExpense: number;
     totalSavings: number;
   };
   chart: Array<{

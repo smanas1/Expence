@@ -74,6 +74,7 @@ export function TransactionTable({
       ...(showGroupingColumn ? [{ accessorKey: "section", header: groupingLabel } satisfies ColumnDef<Transaction>] : []),
       { accessorKey: "amount", header: "Amount", cell: ({ row }) => <span className={transactionTone(row.original.kind).amount}>{formatCurrency(row.original.amount)}</span> },
       { accessorKey: "kind", header: "Type", cell: ({ row }) => <span className={`rounded-full px-2.5 py-1 text-xs font-medium uppercase tracking-[0.16em] ${transactionTone(row.original.kind).badge}`}>{row.original.kind}</span> },
+      { id: "expenseStatus", header: "Status", cell: ({ row }) => row.original.kind === "expense" ? <span className={`rounded-full px-2.5 py-1 text-xs font-medium uppercase tracking-[0.16em] ${row.original.expenseStatus === "unrealized" ? "bg-violet-500/10 text-violet-700 dark:text-violet-300" : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200"}`}>{row.original.expenseStatus}</span> : "-" },
       { accessorKey: "occurredAt", header: "When", cell: ({ row }) => <span title={formatRecentDate(row.original.occurredAt)}>{formatCalendarDate(row.original.occurredAt)}</span> },
       {
         id: "actions",
@@ -119,8 +120,8 @@ export function TransactionTable({
 
   const exportCsv = () => {
     const lines = [
-      [showGroupingColumn ? ["Title", groupingLabel, "Amount", "Type", "Occurred At"] : ["Title", "Amount", "Type", "Occurred At"]].flat().join(","),
-      ...rows.map((row) => (showGroupingColumn ? [row.title, row.section, row.amount, row.kind, row.occurredAt] : [row.title, row.amount, row.kind, row.occurredAt]).join(",")),
+      [showGroupingColumn ? ["Title", groupingLabel, "Amount", "Type", "Status", "Occurred At"] : ["Title", "Amount", "Type", "Status", "Occurred At"]].flat().join(","),
+      ...rows.map((row) => (showGroupingColumn ? [row.title, row.section, row.amount, row.kind, row.kind === "expense" ? row.expenseStatus : "", row.occurredAt] : [row.title, row.amount, row.kind, row.kind === "expense" ? row.expenseStatus : "", row.occurredAt]).join(",")),
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -184,6 +185,7 @@ export function TransactionTable({
                   <div>
                     <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Type</p>
                     <p className={`mt-1 inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-medium uppercase tracking-[0.16em] ${transactionTone(row.original.kind).badge}`}>{row.original.kind}</p>
+                    {row.original.kind === "expense" ? <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-violet-600 dark:text-violet-300">{row.original.expenseStatus}</p> : null}
                   </div>
                   <div>
                     <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Amount</p>
@@ -230,7 +232,7 @@ export function TransactionTable({
             {loading
               ? Array.from({ length: 6 }).map((_, index) => (
                   <tr key={index}>
-                    <td colSpan={showGroupingColumn ? 7 : 6} className="h-14 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+                    <td colSpan={showGroupingColumn ? 8 : 7} className="h-14 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
                   </tr>
                 ))
               : table.getRowModel().rows.map((row) => (
